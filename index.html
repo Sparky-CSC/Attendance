@@ -1,308 +1,370 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Users, Download, Upload, Plus, Trash2, Check, X } from 'lucide-react';
+import { Clock, Users, QrCode, Hash, Download, Trash2, Plus, Calendar } from 'lucide-react';
 
-export default function AttendanceTracker() {
-  const [students, setStudents] = useState([]);
-  const [sessions, setSessions] = useState([]);
-  const [attendance, setAttendance] = useState({});
-  const [newStudentName, setNewStudentName] = useState('');
-  const [newSessionDate, setNewSessionDate] = useState('');
-  const [view, setView] = useState('grid');
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+const AttendanceTracker = () => {
+  const loadData = (key, def) => {
     try {
-      const studentsData = await window.storage.get('students');
-      const sessionsData = await window.storage.get('sessions');
-      const attendanceData = await window.storage.get('attendance');
-      
-      if (studentsData) setStudents(JSON.parse(studentsData.value));
-      if (sessionsData) setSessions(JSON.parse(sessionsData.value));
-      if (attendanceData) setAttendance(JSON.parse(attendanceData.value));
-    } catch (error) {
-      console.log('No saved data found, starting fresh');
+      const s = localStorage.getItem(key);
+      return s ? JSON.parse(s) : def;
+    } catch { return def; }
+  };
+
+  const [view, setView] = useState('student');
+  const [iView, setIView] = useState('dash');
+  const [auth, setAuth] = useState(false);
+  const [pass, setPass] = useState('');
+  const [err, setErr] = useState('');
+  const [cls, setCls] = useState(() => loadData('cls', []));
+  const [selCls, setSelCls] = useState(null);
+  const [sess, setSess] = useState(() => loadData('sess', []));
+  const [curSess, setCurSess] = useState(null);
+  const [code, setCode] = useState('');
+  const [qr, setQr] = useState('');
+  const [timer, setTimer] = useState(0);
+  const [cfg, setCfg] = useState(() => loadData('cfg', {p:5,t:15,r:2}));
+  const [att, setAtt] = useState(() => loadData('att', []));
+  const [stCode, setStCode] = useState('');
+  const [stName, setStName] = useState('');
+  const [msg, setMsg] = useState('');
+  const [newCls, setNewCls] = useState('');
+  const [dt, setDt] = useState('');
+  const [tm, setTm] = useState('');
+  const [nm, setNm] = useState('');
+
+  useEffect(() => { localStorage.setItem('cls', JSON.stringify(cls)); }, [cls]);
+  useEffect(() => { localStorage.setItem('sess', JSON.stringify(sess)); }, [sess]);
+  useEffect(() => { localStorage.setItem('cfg', JSON.stringify(cfg)); }, [cfg]);
+  useEffect(() => { localStorage.setItem('att', JSON.stringify(att)); }, [att]);
+
+  const login = () => {
+    if (pass === 'instructor123') { setAuth(true); setErr(''); }
+    else { setErr('Wrong password'); setTimeout(() => setErr(''), 3000); }
+  };
+
+  const addCls = () => {
+    if (!newCls.trim()) { alert('Enter class name'); return; }
+    setCls([...cls, {id:Date.now(), name:newCls, at:new Date().toISOString()}]);
+    setNewCls('');
+  };
+
+  const delCls = (id) => {
+    if (confirm('Delete class?')) {
+      setCls(cls.filter(c => c.id !== id));
+      setSess(sess.filter(s => s.cid !== id));
+      setAtt(att.filter(a => a.cid !== id));
     }
   };
 
-  const saveData = async (newStudents, newSessions, newAttendance) => {
-    try {
-      await window.storage.set('students', JSON.stringify(newStudents));
-      await window.storage.set('sessions', JSON.stringify(newSessions));
-      await window.storage.set('attendance', JSON.stringify(newAttendance));
-    } catch (error) {
-      console.error('Failed to save data:', error);
+  const addSess = () => {
+    if (!selCls) { alert('Select class'); return; }
+    if (!dt || !tm) { alert('Enter date/time'); return; }
+    setSess([...sess, {
+      id:Date.now(), cid:selCls.id, cnm:selCls.name,
+      dt, tm, nm:nm||'Session', st:'sched', at:new Date().toISOString()
+    }]);
+    setDt(''); setTm(''); setNm('');
+  };
+
+  const canSess = (id) => {
+    if (confirm('Cancel?')) setSess(sess.map(s => s.id===id ? {...s,st:'cancel'} : s));
+  };
+
+  const delSess = (id) => {
+    if (confirm('Delete?')) {
+      setSess(sess.filter(s => s.id !== id));
+      setAtt(att.filter(a => a.sid !== id));
     }
   };
 
-  const addStudent = () => {
-    if (!newStudentName.trim()) return;
-    const newStudent = {
-      id: Date.now().toString(),
-      name: newStudentName.trim()
-    };
-    const updated = [...students, newStudent];
-    setStudents(updated);
-    saveData(updated, sessions, attendance);
-    setNewStudentName('');
-  };
+  const genCode = () => Math.floor(100000 + Math.random() * 900000).toString();
 
-  const removeStudent = (id) => {
-    const updated = students.filter(s => s.id !== id);
-    setStudents(updated);
-    saveData(updated, sessions, attendance);
-  };
-
-  const addSession = () => {
-    if (!newSessionDate) return;
-    const newSession = {
-      id: Date.now().toString(),
-      date: newSessionDate
-    };
-    const updated = [...sessions, newSession].sort((a, b) => 
-      new Date(a.date) - new Date(b.date)
-    );
-    setSessions(updated);
-    saveData(students, updated, attendance);
-    setNewSessionDate('');
-  };
-
-  const removeSession = (id) => {
-    const updated = sessions.filter(s => s.id !== id);
-    setSessions(updated);
-    saveData(students, updated, attendance);
-  };
-
-  const toggleAttendance = (studentId, sessionId) => {
-    const key = `${studentId}-${sessionId}`;
-    const updated = { ...attendance };
-    updated[key] = !updated[key];
-    setAttendance(updated);
-    saveData(students, sessions, updated);
-  };
-
-  const getAttendanceRate = (studentId) => {
-    if (sessions.length === 0) return 0;
-    const attended = sessions.filter(s => 
-      attendance[`${studentId}-${s.id}`]
-    ).length;
-    return (attended / sessions.length * 100).toFixed(1);
-  };
-
-  const getGrade = (rate) => {
-    if (rate >= 97) return 'A+';
-    if (rate >= 93) return 'A';
-    if (rate >= 90) return 'A-';
-    if (rate >= 87) return 'B+';
-    if (rate >= 83) return 'B';
-    if (rate >= 80) return 'B-';
-    if (rate >= 77) return 'C+';
-    if (rate >= 73) return 'C';
-    if (rate >= 70) return 'C-';
-    if (rate >= 67) return 'D+';
-    if (rate >= 63) return 'D';
-    if (rate >= 60) return 'D-';
-    return 'F';
-  };
-
-  const exportCSV = () => {
-    let csv = 'Student Name,Attendance Rate,Grade';
-    sessions.forEach(s => {
-      csv += `,${s.date}`;
-    });
-    csv += '\n';
-
-    students.forEach(student => {
-      const rate = getAttendanceRate(student.id);
-      const grade = getGrade(parseFloat(rate));
-      csv += `${student.name},${rate}%,${grade}`;
-      sessions.forEach(session => {
-        const present = attendance[`${student.id}-${session.id}`];
-        csv += `,${present ? 'Present' : 'Absent'}`;
-      });
-      csv += '\n';
-    });
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `attendance-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-  };
-
-  const clearData = async () => {
-    if (confirm('Clear all data? This cannot be undone.')) {
-      setStudents([]);
-      setSessions([]);
-      setAttendance({});
-      try {
-        await window.storage.delete('students');
-        await window.storage.delete('sessions');
-        await window.storage.delete('attendance');
-      } catch (error) {
-        console.error('Failed to clear data:', error);
+  const genQR = (c) => {
+    const sz = 200, can = document.createElement('canvas');
+    can.width = sz; can.height = sz;
+    const ctx = can.getContext('2d');
+    ctx.fillStyle = '#FFF'; ctx.fillRect(0,0,sz,sz);
+    ctx.fillStyle = '#000';
+    const g = 8, cs = sz/g;
+    let sd = parseInt(c);
+    for (let i=0; i<g; i++) {
+      for (let j=0; j<g; j++) {
+        sd = (sd*9301+49297)%233280;
+        if (sd/233280 > 0.5) ctx.fillRect(j*cs, i*cs, cs, cs);
       }
     }
+    ctx.fillStyle = '#FFF'; ctx.fillRect(sz/4,sz/4,sz/2,sz/2);
+    ctx.fillStyle = '#000'; ctx.font = 'bold 24px monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(c, sz/2, sz/2);
+    return can.toDataURL();
   };
 
+  const startSess = (s) => {
+    const c = genCode();
+    setCode(c); setQr(genQR(c)); setTimer(cfg.r*60);
+    const up = {...s, st:'active', start:Date.now(), code:c};
+    setSess(sess.map(x => x.id===s.id ? up : x));
+    setCurSess(up); setIView('dash');
+  };
+
+  const endSess = () => {
+    if (curSess) setSess(sess.map(s => s.id===curSess.id ? {...s,st:'done',end:Date.now()} : s));
+    setCurSess(null); setCode(''); setQr(''); setTimer(0);
+  };
+
+  const markExc = (id) => {
+    setAtt(att.map(a => a.id===id ? {...a,st:'Excused'} : a));
+  };
+
+  useEffect(() => {
+    if (!curSess) return;
+    const t = setInterval(() => {
+      setTimer(p => {
+        if (p <= 1) {
+          const nc = genCode();
+          setCode(nc); setQr(genQR(nc));
+          return cfg.r*60;
+        }
+        return p-1;
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, [curSess, cfg.r]);
+
+  const getSt = () => {
+    if (!curSess || !curSess.start) return 'Absent';
+    const m = (Date.now() - curSess.start)/1000/60;
+    if (m <= cfg.p) return 'Present';
+    if (m <= cfg.t) return 'Tardy';
+    return 'Absent';
+  };
+
+  const checkIn = () => {
+    if (!curSess) { setMsg('No session'); return; }
+    if (!stName.trim()) { setMsg('Enter name'); return; }
+    if (stCode !== code) { setMsg('Invalid code'); return; }
+    if (att.find(a => a.sid===curSess.id && a.name.toLowerCase()===stName.toLowerCase())) {
+      setMsg('Already checked in'); return;
+    }
+    const st = getSt();
+    setAtt([...att, {
+      id:Date.now(), sid:curSess.id, cid:curSess.cid, cnm:curSess.cnm,
+      snm:curSess.nm, name:stName, st, time:new Date().toLocaleTimeString(),
+      date:new Date().toLocaleDateString(), ts:Date.now()
+    }]);
+    setMsg(`✓ ${st}`); setStName(''); setStCode('');
+    setTimeout(() => setMsg(''), 3000);
+  };
+
+  const exp = (cid=null) => {
+    const r = cid ? att.filter(a => a.cid===cid) : att;
+    if (r.length === 0) { alert('No records'); return; }
+    const h = ['Date','Class','Session','Student','Status','Time'];
+    const rows = r.map(x => [x.date,x.cnm,x.snm,x.name,x.st,x.time]);
+    let csv = h.join(',')+'\n';
+    rows.forEach(row => { csv += row.map(c => `"${c}"`).join(',')+'\n'; });
+    const b = new Blob([csv], {type:'text/csv'});
+    const l = document.createElement('a');
+    l.href = URL.createObjectURL(b);
+    l.download = `att_${new Date().toISOString().split('T')[0]}.csv`;
+    l.click();
+  };
+
+  const fmt = (s) => {
+    const m = Math.floor(s/60), sc = s%60;
+    return `${m}:${sc.toString().padStart(2,'0')}`;
+  };
+
+  const getSessAtt = (sid) => att.filter(a => a.sid===sid);
+  const getClsSess = (cid) => sess.filter(s => s.cid===cid);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="max-w-6xl mx-auto">
         <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <Calendar className="w-8 h-8 text-indigo-600" />
-              <h1 className="text-3xl font-bold text-gray-800">A+ Attendance Tracker</h1>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={exportCSV}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-              >
-                <Download className="w-4 h-4" />
-                Export
-              </button>
-              <button
-                onClick={clearData}
-                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-              >
-                <Trash2 className="w-4 h-4" />
-                Clear
-              </button>
-            </div>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-4 mb-6">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={newStudentName}
-                onChange={(e) => setNewStudentName(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && addStudent()}
-                placeholder="Student name"
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              />
-              <button
-                onClick={addStudent}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-              >
-                <Plus className="w-4 h-4" />
-                Add Student
-              </button>
-            </div>
-
-            <div className="flex gap-2">
-              <input
-                type="date"
-                value={newSessionDate}
-                onChange={(e) => setNewSessionDate(e.target.value)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              />
-              <button
-                onClick={addSession}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-              >
-                <Plus className="w-4 h-4" />
-                Add Session
-              </button>
-            </div>
+          <h1 className="text-3xl font-bold text-gray-800 mb-4">Attendance Tracker</h1>
+          <div className="flex gap-2">
+            <button onClick={() => setView('inst')} className={`px-6 py-2 rounded-lg font-medium ${view==='inst'?'bg-indigo-600 text-white':'bg-gray-200 text-gray-700'}`}>Instructor</button>
+            <button onClick={() => setView('student')} className={`px-6 py-2 rounded-lg font-medium ${view==='student'?'bg-indigo-600 text-white':'bg-gray-200 text-gray-700'}`}>Student</button>
           </div>
         </div>
 
-        {students.length === 0 || sessions.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-lg p-12 text-center">
-            <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 text-lg">
-              {students.length === 0 && sessions.length === 0
-                ? 'Add students and sessions to start tracking attendance'
-                : students.length === 0
-                ? 'Add students to start tracking attendance'
-                : 'Add sessions to start tracking attendance'}
-            </p>
+        {view==='inst' && !auth && (
+          <div className="bg-white rounded-lg shadow-lg p-8 max-w-md mx-auto">
+            <h2 className="text-2xl font-bold mb-6 text-center">Instructor Access</h2>
+            <input type="password" value={pass} onChange={e=>setPass(e.target.value)} onKeyPress={e=>e.key==='Enter'&&login()} placeholder="Password" className="w-full px-4 py-3 border rounded-lg mb-4" />
+            <button onClick={login} className="w-full py-3 bg-indigo-600 text-white rounded-lg">Login</button>
+            {err && <div className="mt-3 p-3 bg-red-100 text-red-800 rounded text-center text-sm">{err}</div>}
+            <p className="text-xs text-gray-500 text-center mt-3">Default: instructor123</p>
           </div>
-        ) : (
-          <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-indigo-600 text-white">
-                  <tr>
-                    <th className="px-4 py-3 text-left sticky left-0 bg-indigo-600 z-10">Student</th>
-                    <th className="px-4 py-3 text-center">Rate</th>
-                    <th className="px-4 py-3 text-center">Grade</th>
-                    {sessions.map(session => (
-                      <th key={session.id} className="px-4 py-3 text-center min-w-32">
-                        <div>{new Date(session.date).toLocaleDateString()}</div>
-                        <button
-                          onClick={() => removeSession(session.id)}
-                          className="mt-1 text-red-200 hover:text-white"
-                        >
-                          <X className="w-4 h-4 mx-auto" />
-                        </button>
-                      </th>
-                    ))}
-                    <th className="px-4 py-3"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {students.map((student, idx) => {
-                    const rate = parseFloat(getAttendanceRate(student.id));
-                    const grade = getGrade(rate);
-                    return (
-                      <tr key={student.id} className={idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
-                        <td className="px-4 py-3 font-medium sticky left-0 bg-inherit z-10">
-                          {student.name}
-                        </td>
-                        <td className="px-4 py-3 text-center font-semibold">
-                          {rate}%
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={`inline-block px-3 py-1 rounded-full font-bold ${
-                            grade.startsWith('A') ? 'bg-green-100 text-green-800' :
-                            grade.startsWith('B') ? 'bg-blue-100 text-blue-800' :
-                            grade.startsWith('C') ? 'bg-yellow-100 text-yellow-800' :
-                            grade.startsWith('D') ? 'bg-orange-100 text-orange-800' :
-                            'bg-red-100 text-red-800'
-                          }`}>
-                            {grade}
-                          </span>
-                        </td>
-                        {sessions.map(session => {
-                          const isPresent = attendance[`${student.id}-${session.id}`];
-                          return (
-                            <td key={session.id} className="px-4 py-3 text-center">
-                              <button
-                                onClick={() => toggleAttendance(student.id, session.id)}
-                                className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-                                  isPresent
-                                    ? 'bg-green-500 hover:bg-green-600 text-white'
-                                    : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
-                                }`}
-                              >
-                                {isPresent ? <Check className="w-5 h-5" /> : <X className="w-5 h-5" />}
-                              </button>
-                            </td>
-                          );
-                        })}
-                        <td className="px-4 py-3 text-center">
-                          <button
-                            onClick={() => removeStudent(student.id)}
-                            className="text-red-600 hover:text-red-800"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+        )}
+
+        {view==='inst' && auth && (
+          <>
+            <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+              <div className="flex gap-2">
+                <button onClick={()=>setIView('dash')} className={`px-4 py-2 rounded-lg ${iView==='dash'?'bg-indigo-600 text-white':'bg-gray-200'}`}>Dashboard</button>
+                <button onClick={()=>setIView('cls')} className={`px-4 py-2 rounded-lg ${iView==='cls'?'bg-indigo-600 text-white':'bg-gray-200'}`}>Classes</button>
+                <button onClick={()=>setIView('sess')} className={`px-4 py-2 rounded-lg ${iView==='sess'?'bg-indigo-600 text-white':'bg-gray-200'}`}>Sessions</button>
+                <button onClick={()=>setIView('set')} className={`px-4 py-2 rounded-lg ${iView==='set'?'bg-indigo-600 text-white':'bg-gray-200'}`}>Settings</button>
+              </div>
             </div>
+
+            {iView==='dash' && curSess && (
+              <div className="space-y-6">
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                  <div className="flex justify-between mb-4">
+                    <div><h2 className="text-xl font-bold">{curSess.cnm}</h2><p className="text-gray-600">{curSess.nm}</p></div>
+                    <button onClick={endSess} className="px-6 py-2 bg-red-600 text-white rounded-lg">End</button>
+                  </div>
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div className="text-center bg-gray-50 p-6 rounded-lg">
+                      <QrCode className="w-6 h-6 mx-auto mb-2 text-indigo-600" />
+                      <h3 className="font-semibold mb-4">QR Code</h3>
+                      {qr && <img src={qr} alt="QR" className="mx-auto border-4 border-white shadow-lg" />}
+                    </div>
+                    <div className="text-center bg-gray-50 p-6 rounded-lg flex flex-col justify-center">
+                      <Hash className="w-6 h-6 mx-auto mb-2 text-indigo-600" />
+                      <h3 className="font-semibold mb-4">Code</h3>
+                      <div className="text-5xl font-bold text-indigo-600 mb-4">{code}</div>
+                      <div className="flex items-center justify-center gap-2 text-gray-600">
+                        <Clock className="w-4 h-4" />
+                        <span>Refreshes: {fmt(timer)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                  <h3 className="text-lg font-bold mb-4">Attendance ({getSessAtt(curSess.id).length})</h3>
+                  {getSessAtt(curSess.id).length===0 ? <p className="text-gray-500 text-center py-4">No check-ins</p> : (
+                    <table className="w-full">
+                      <thead><tr className="border-b"><th className="text-left py-3 px-4">Student</th><th className="text-left py-3 px-4">Status</th><th className="text-left py-3 px-4">Time</th><th className="text-left py-3 px-4">Action</th></tr></thead>
+                      <tbody>{getSessAtt(curSess.id).map(r => (
+                        <tr key={r.id} className="border-b hover:bg-gray-50">
+                          <td className="py-3 px-4">{r.name}</td>
+                          <td className="py-3 px-4"><span className={`px-3 py-1 rounded-full text-sm ${r.st==='Present'?'bg-green-100 text-green-800':r.st==='Tardy'?'bg-yellow-100 text-yellow-800':r.st==='Excused'?'bg-blue-100 text-blue-800':'bg-red-100 text-red-800'}`}>{r.st}</span></td>
+                          <td className="py-3 px-4 text-gray-600">{r.time}</td>
+                          <td className="py-3 px-4">{r.st!=='Excused' && <button onClick={()=>markExc(r.id)} className="text-blue-600 text-sm">Excuse</button>}</td>
+                        </tr>
+                      ))}</tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {iView==='dash' && !curSess && (
+              <div className="bg-white rounded-lg shadow-lg p-8 text-center">
+                <Calendar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-xl font-bold mb-2">No Active Session</h3>
+                <button onClick={()=>setIView('sess')} className="px-6 py-3 bg-indigo-600 text-white rounded-lg mt-4">View Sessions</button>
+              </div>
+            )}
+
+            {iView==='cls' && (
+              <div className="space-y-6">
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                  <h2 className="text-xl font-bold mb-4">Add Class</h2>
+                  <div className="flex gap-2">
+                    <input value={newCls} onChange={e=>setNewCls(e.target.value)} placeholder="Class name" className="flex-1 px-4 py-2 border rounded-lg" />
+                    <button onClick={addCls} className="px-6 py-2 bg-indigo-600 text-white rounded-lg flex items-center gap-2"><Plus className="w-4 h-4"/>Add</button>
+                  </div>
+                </div>
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                  <h2 className="text-xl font-bold mb-4">Classes</h2>
+                  {cls.length===0 ? <p className="text-gray-500 text-center py-4">No classes</p> : (
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {cls.map(c => (
+                        <div key={c.id} className="border rounded-lg p-4">
+                          <div className="flex justify-between mb-2">
+                            <h3 className="font-bold">{c.name}</h3>
+                            <button onClick={()=>delCls(c.id)} className="text-red-600"><Trash2 className="w-4 h-4"/></button>
+                          </div>
+                          <p className="text-sm text-gray-600 mb-2">{getClsSess(c.id).length} sessions</p>
+                          <button onClick={()=>exp(c.id)} className="text-sm text-indigo-600 flex items-center gap-1"><Download className="w-3 h-3"/>Export</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {iView==='sess' && (
+              <div className="space-y-6">
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                  <h2 className="text-xl font-bold mb-4">Schedule Session</h2>
+                  <div className="space-y-4">
+                    <select value={selCls?.id||''} onChange={e=>setSelCls(cls.find(c=>c.id===parseInt(e.target.value)))} className="w-full px-4 py-2 border rounded-lg">
+                      <option value="">Choose class...</option>
+                      {cls.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    <div className="grid md:grid-cols-3 gap-4">
+                      <input type="date" value={dt} onChange={e=>setDt(e.target.value)} className="px-4 py-2 border rounded-lg" />
+                      <input type="time" value={tm} onChange={e=>setTm(e.target.value)} className="px-4 py-2 border rounded-lg" />
+                      <input value={nm} onChange={e=>setNm(e.target.value)} placeholder="Name" className="px-4 py-2 border rounded-lg" />
+                    </div>
+                    <button onClick={addSess} className="px-6 py-2 bg-indigo-600 text-white rounded-lg flex items-center gap-2"><Plus className="w-4 h-4"/>Schedule</button>
+                  </div>
+                </div>
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                  <h2 className="text-xl font-bold mb-4">Sessions</h2>
+                  {sess.length===0 ? <p className="text-gray-500 text-center py-4">No sessions</p> : (
+                    <div className="space-y-4">
+                      {sess.sort((a,b)=>new Date(b.dt)-new Date(a.dt)).map(s => (
+                        <div key={s.id} className="border rounded-lg p-4">
+                          <div className="flex justify-between">
+                            <div>
+                              <h3 className="font-bold">{s.cnm}</h3>
+                              <p className="text-sm text-gray-600">{s.nm}</p>
+                              <p className="text-sm text-gray-500">{new Date(s.dt).toLocaleDateString()} at {s.tm}</p>
+                              <span className={`inline-block mt-2 px-3 py-1 rounded-full text-xs ${s.st==='active'?'bg-green-100 text-green-800':s.st==='done'?'bg-gray-100 text-gray-800':s.st==='cancel'?'bg-red-100 text-red-800':'bg-blue-100 text-blue-800'}`}>{s.st}</span>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              {s.st==='sched' && <button onClick={()=>startSess(s)} className="px-4 py-2 bg-green-600 text-white rounded text-sm">Start</button>}
+                              {s.st==='sched' && <button onClick={()=>canSess(s.id)} className="px-4 py-2 bg-yellow-600 text-white rounded text-sm">Cancel</button>}
+                              <button onClick={()=>delSess(s.id)} className="px-4 py-2 bg-red-600 text-white rounded text-sm">Delete</button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {iView==='set' && (
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <h2 className="text-xl font-bold mb-4">Settings</h2>
+                <div className="grid md:grid-cols-3 gap-4 mb-6">
+                  <div><label className="block text-sm font-medium mb-2">Present (min)</label><input type="number" value={cfg.p} onChange={e=>setCfg({...cfg,p:parseInt(e.target.value)||0})} className="w-full px-3 py-2 border rounded-lg" min="1"/></div>
+                  <div><label className="block text-sm font-medium mb-2">Tardy (min)</label><input type="number" value={cfg.t} onChange={e=>setCfg({...cfg,t:parseInt(e.target.value)||0})} className="w-full px-3 py-2 border rounded-lg" min="1"/></div>
+                  <div><label className="block text-sm font-medium mb-2">Refresh (min)</label><input type="number" value={cfg.r} onChange={e=>setCfg({...cfg,r:parseInt(e.target.value)||1})} className="w-full px-3 py-2 border rounded-lg" min="1"/></div>
+                </div>
+                <button onClick={()=>exp()} className="px-6 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2"><Download className="w-4 h-4"/>Export All</button>
+              </div>
+            )}
+          </>
+        )}
+
+        {view==='student' && (
+          <div className="bg-white rounded-lg shadow-lg p-8 max-w-md mx-auto">
+            <h2 className="text-2xl font-bold mb-6 text-center">Student Check-In</h2>
+            {!curSess ? <p className="text-gray-500 text-center py-8">No active session</p> : (
+              <div className="space-y-4">
+                <div><label className="block text-sm font-medium mb-2">Your Name</label><input value={stName} onChange={e=>setStName(e.target.value)} placeholder="Full name" className="w-full px-4 py-3 border rounded-lg"/></div>
+                <div><label className="block text-sm font-medium mb-2">Code</label><input value={stCode} onChange={e=>setStCode(e.target.value)} placeholder="6-digit code" maxLength={6} className="w-full px-4 py-3 border rounded-lg text-2xl text-center tracking-widest font-mono"/></div>
+                <button onClick={checkIn} className="w-full py-3 bg-indigo-600 text-white rounded-lg">Check In</button>
+                {msg && <div className={`p-4 rounded-lg text-center ${msg.includes('✓')?'bg-green-100 text-green-800':'bg-red-100 text-red-800'}`}>{msg}</div>}
+                <div className="p-4 bg-blue-50 rounded-lg"><p className="text-sm text-center"><strong>Windows:</strong><br/>Present: {cfg.p}min | Tardy: {cfg.t}min</p></div>
+              </div>
+            )}
           </div>
         )}
       </div>
     </div>
   );
-}
+};
+
+export default AttendanceTracker;
