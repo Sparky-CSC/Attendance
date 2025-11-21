@@ -64,6 +64,9 @@
             const [newSessionName, setNewSessionName] = useState('');
             const [bulkCount, setBulkCount] = useState(1);
             const [bulkInterval, setBulkInterval] = useState('daily');
+            const [selectedDays, setSelectedDays] = useState([]);
+            const [repeatWeeks, setRepeatWeeks] = useState(1);
+            const [useCalendar, setUseCalendar] = useState(true);
             const [editingSession, setEditingSession] = useState(null);
             const [editSessionData, setEditSessionData] = useState({});
 
@@ -119,41 +122,84 @@
                     alert('Please select a class first');
                     return;
                 }
-                if (!newSessionDate || !newSessionTime) {
-                    alert('Please enter date and time');
+                if (!newSessionTime) {
+                    alert('Please enter time');
                     return;
                 }
                 
                 const newSessions = [];
-                const startDate = new Date(newSessionDate + 'T00:00:00');
                 
-                for (let i = 0; i < bulkCount; i++) {
-                    const sessionDate = new Date(startDate);
+                if (useCalendar) {
+                    // Calendar mode - use existing logic
+                    if (!newSessionDate) {
+                        alert('Please enter date');
+                        return;
+                    }
+                    const startDate = new Date(newSessionDate + 'T00:00:00');
                     
-                    if (bulkInterval === 'daily') {
-                        sessionDate.setDate(startDate.getDate() + i);
-                    } else if (bulkInterval === 'weekly') {
-                        sessionDate.setDate(startDate.getDate() + (i * 7));
-                    } else if (bulkInterval === 'biweekly') {
-                        sessionDate.setDate(startDate.getDate() + (i * 14));
+                    for (let i = 0; i < bulkCount; i++) {
+                        const sessionDate = new Date(startDate);
+                        
+                        if (bulkInterval === 'daily') {
+                            sessionDate.setDate(startDate.getDate() + i);
+                        } else if (bulkInterval === 'weekly') {
+                            sessionDate.setDate(startDate.getDate() + (i * 7));
+                        } else if (bulkInterval === 'biweekly') {
+                            sessionDate.setDate(startDate.getDate() + (i * 14));
+                        }
+                        
+                        if ((bulkInterval === 'weekly' || bulkInterval === 'biweekly') && (sessionDate.getDay() === 0 || sessionDate.getDay() === 6)) {
+                            continue;
+                        }
+                        
+                        const sessionName = bulkCount > 1 ? `${newSessionName || 'Session'} ${i + 1}` : (newSessionName || 'Session');
+                        
+                        newSessions.push({
+                            id: Date.now() + i,
+                            classId: selectedClass.id,
+                            className: selectedClass.name,
+                            date: sessionDate.toISOString().split('T')[0],
+                            time: newSessionTime,
+                            name: sessionName,
+                            status: 'scheduled',
+                            createdAt: new Date().toISOString()
+                        });
+                    }
+                } else {
+                    // Day selector mode
+                    if (selectedDays.length === 0) {
+                        alert('Please select at least one day of the week');
+                        return;
+                    }
+                    if (!newSessionDate) {
+                        alert('Please select a start date');
+                        return;
                     }
                     
-                    if ((bulkInterval === 'weekly' || bulkInterval === 'biweekly') && (sessionDate.getDay() === 0 || sessionDate.getDay() === 6)) {
-                        continue;
+                    const startDate = new Date(newSessionDate + 'T00:00:00');
+                    const endDate = new Date(startDate);
+                    endDate.setDate(startDate.getDate() + (repeatWeeks * 7));
+                    
+                    let sessionCount = 0;
+                    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                        if (selectedDays.includes(d.getDay())) {
+                            const sessionName = selectedDays.length > 1 || repeatWeeks > 1 
+                                ? `${newSessionName || 'Session'} ${sessionCount + 1}` 
+                                : (newSessionName || 'Session');
+                            
+                            newSessions.push({
+                                id: Date.now() + sessionCount,
+                                classId: selectedClass.id,
+                                className: selectedClass.name,
+                                date: d.toISOString().split('T')[0],
+                                time: newSessionTime,
+                                name: sessionName,
+                                status: 'scheduled',
+                                createdAt: new Date().toISOString()
+                            });
+                            sessionCount++;
+                        }
                     }
-                    
-                    const sessionName = bulkCount > 1 ? `${newSessionName || 'Session'} ${i + 1}` : (newSessionName || 'Session');
-                    
-                    newSessions.push({
-                        id: Date.now() + i,
-                        classId: selectedClass.id,
-                        className: selectedClass.name,
-                        date: sessionDate.toISOString().split('T')[0],
-                        time: newSessionTime,
-                        name: sessionName,
-                        status: 'scheduled',
-                        createdAt: new Date().toISOString()
-                    });
                 }
                 
                 setSessions([...sessions, ...newSessions]);
@@ -161,6 +207,16 @@
                 setNewSessionTime('');
                 setNewSessionName('');
                 setBulkCount(1);
+                setSelectedDays([]);
+                setRepeatWeeks(1);
+            };
+
+            const toggleDay = (day) => {
+                if (selectedDays.includes(day)) {
+                    setSelectedDays(selectedDays.filter(d => d !== day));
+                } else {
+                    setSelectedDays([...selectedDays, day]);
+                }
             };
 
             const copySession = (session) => {
@@ -544,41 +600,138 @@
                                             <option value="">Choose class...</option>
                                             {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                         </select>
-                                        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '12px'}}>
-                                            <div>
-                                                <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Start Date</label>
-                                                <input type="date" value={newSessionDate} onChange={(e) => setNewSessionDate(e.target.value)} style={styles.input} />
-                                            </div>
-                                            <div>
-                                                <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Time</label>
-                                                <input type="time" value={newSessionTime} onChange={(e) => setNewSessionTime(e.target.value)} style={styles.input} />
-                                            </div>
-                                            <div>
-                                                <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Session Name</label>
-                                                <input value={newSessionName} onChange={(e) => setNewSessionName(e.target.value)} placeholder="Lecture, Lab, etc." style={styles.input} />
-                                            </div>
+
+                                        {/* Mode Toggle */}
+                                        <div style={{display: 'flex', gap: '8px', marginBottom: '16px'}}>
+                                            <button 
+                                                onClick={() => setUseCalendar(true)} 
+                                                style={{
+                                                    ...styles.button, 
+                                                    background: useCalendar ? '#4F46E5' : '#E5E7EB', 
+                                                    color: useCalendar ? 'white' : '#374151',
+                                                    flex: 1
+                                                }}
+                                            >
+                                                📅 Calendar Mode
+                                            </button>
+                                            <button 
+                                                onClick={() => setUseCalendar(false)} 
+                                                style={{
+                                                    ...styles.button, 
+                                                    background: !useCalendar ? '#4F46E5' : '#E5E7EB', 
+                                                    color: !useCalendar ? 'white' : '#374151',
+                                                    flex: 1
+                                                }}
+                                            >
+                                                📆 Day Selector
+                                            </button>
                                         </div>
-                                        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '12px'}}>
-                                            <div>
-                                                <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Number of Sessions</label>
-                                                <input type="number" min="1" max="50" value={bulkCount} onChange={(e) => setBulkCount(parseInt(e.target.value) || 1)} style={styles.input} />
-                                            </div>
-                                            <div>
-                                                <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Interval</label>
-                                                <select value={bulkInterval} onChange={(e) => setBulkInterval(e.target.value)} style={styles.input}>
-                                                    <option value="daily">Daily</option>
-                                                    <option value="weekly">Weekly (skip weekends)</option>
-                                                    <option value="biweekly">Bi-weekly (skip weekends)</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        {bulkCount > 1 && (
-                                            <div style={{padding: '12px', background: '#DBEAFE', borderRadius: '8px', marginBottom: '12px', fontSize: '0.875rem', color: '#1E40AF'}}>
-                                                ℹ️ This will create {bulkCount} sessions starting from {newSessionDate} ({bulkInterval})
-                                            </div>
+
+                                        {useCalendar ? (
+                                            // Calendar Mode
+                                            <>
+                                                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '12px'}}>
+                                                    <div>
+                                                        <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Start Date</label>
+                                                        <input type="date" value={newSessionDate} onChange={(e) => setNewSessionDate(e.target.value)} style={styles.input} />
+                                                    </div>
+                                                    <div>
+                                                        <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Time</label>
+                                                        <input type="time" value={newSessionTime} onChange={(e) => setNewSessionTime(e.target.value)} style={styles.input} />
+                                                    </div>
+                                                    <div>
+                                                        <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Session Name</label>
+                                                        <input value={newSessionName} onChange={(e) => setNewSessionName(e.target.value)} placeholder="Lecture, Lab, etc." style={styles.input} />
+                                                    </div>
+                                                </div>
+                                                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '12px'}}>
+                                                    <div>
+                                                        <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Number of Sessions</label>
+                                                        <input type="number" min="1" max="50" value={bulkCount} onChange={(e) => setBulkCount(parseInt(e.target.value) || 1)} style={styles.input} />
+                                                    </div>
+                                                    <div>
+                                                        <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Interval</label>
+                                                        <select value={bulkInterval} onChange={(e) => setBulkInterval(e.target.value)} style={styles.input}>
+                                                            <option value="daily">Daily</option>
+                                                            <option value="weekly">Weekly (skip weekends)</option>
+                                                            <option value="biweekly">Bi-weekly (skip weekends)</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                {bulkCount > 1 && (
+                                                    <div style={{padding: '12px', background: '#DBEAFE', borderRadius: '8px', marginBottom: '12px', fontSize: '0.875rem', color: '#1E40AF'}}>
+                                                        ℹ️ This will create {bulkCount} sessions starting from {newSessionDate} ({bulkInterval})
+                                                    </div>
+                                                )}
+                                            </>
+                                        ) : (
+                                            // Day Selector Mode
+                                            <>
+                                                <div style={{marginBottom: '12px'}}>
+                                                    <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '8px'}}>Select Days of Week</label>
+                                                    <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: '8px'}}>
+                                                        {[
+                                                            {day: 1, name: 'Mon', emoji: '📘'},
+                                                            {day: 2, name: 'Tue', emoji: '📗'},
+                                                            {day: 3, name: 'Wed', emoji: '📙'},
+                                                            {day: 4, name: 'Thu', emoji: '📕'},
+                                                            {day: 5, name: 'Fri', emoji: '📔'},
+                                                            {day: 6, name: 'Sat', emoji: '📓'},
+                                                            {day: 0, name: 'Sun', emoji: '📒'}
+                                                        ].map(({day, name, emoji}) => (
+                                                            <button
+                                                                key={day}
+                                                                onClick={() => toggleDay(day)}
+                                                                style={{
+                                                                    padding: '12px 8px',
+                                                                    borderRadius: '8px',
+                                                                    border: '2px solid',
+                                                                    borderColor: selectedDays.includes(day) ? '#4F46E5' : '#E5E7EB',
+                                                                    background: selectedDays.includes(day) ? '#EEF2FF' : 'white',
+                                                                    cursor: 'pointer',
+                                                                    fontSize: '0.875rem',
+                                                                    fontWeight: selectedDays.includes(day) ? 'bold' : 'normal',
+                                                                    color: selectedDays.includes(day) ? '#4F46E5' : '#6B7280'
+                                                                }}
+                                                            >
+                                                                <div style={{fontSize: '1.5rem', marginBottom: '4px'}}>{emoji}</div>
+                                                                {name}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '12px'}}>
+                                                    <div>
+                                                        <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Start Date</label>
+                                                        <input type="date" value={newSessionDate} onChange={(e) => setNewSessionDate(e.target.value)} style={styles.input} />
+                                                    </div>
+                                                    <div>
+                                                        <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Time</label>
+                                                        <input type="time" value={newSessionTime} onChange={(e) => setNewSessionTime(e.target.value)} style={styles.input} />
+                                                    </div>
+                                                    <div>
+                                                        <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Repeat for (weeks)</label>
+                                                        <input type="number" min="1" max="20" value={repeatWeeks} onChange={(e) => setRepeatWeeks(parseInt(e.target.value) || 1)} style={styles.input} />
+                                                    </div>
+                                                    <div>
+                                                        <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Session Name</label>
+                                                        <input value={newSessionName} onChange={(e) => setNewSessionName(e.target.value)} placeholder="Lecture, Lab, etc." style={styles.input} />
+                                                    </div>
+                                                </div>
+                                                {selectedDays.length > 0 && repeatWeeks > 0 && (
+                                                    <div style={{padding: '12px', background: '#DBEAFE', borderRadius: '8px', marginBottom: '12px', fontSize: '0.875rem', color: '#1E40AF'}}>
+                                                        ℹ️ This will create sessions on {selectedDays.map(d => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d]).join(', ')} for {repeatWeeks} week{repeatWeeks > 1 ? 's' : ''}
+                                                        <br/>
+                                                        (approximately {selectedDays.length * repeatWeeks} sessions)
+                                                    </div>
+                                                )}
+                                            </>
                                         )}
+                                        
                                         <button onClick={addSession} style={{...styles.button, background: '#4F46E5', color: 'white'}}>
-                                            {bulkCount > 1 ? `Schedule ${bulkCount} Sessions` : 'Schedule Session'}
+                                            {useCalendar && bulkCount > 1 ? `Schedule ${bulkCount} Sessions` : 
+                                             !useCalendar && selectedDays.length > 0 ? `Schedule Sessions` : 
+                                             'Schedule Session'}
                                         </button>
 
                                         <h3 style={{fontWeight: 'bold', marginTop: '32px', marginBottom: '16px'}}>All Sessions</h3>
