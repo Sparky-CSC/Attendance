@@ -18,947 +18,1563 @@
     </style>
 </head>
 <body>
-    <div id="root"></div>
+<div id="root"></div>
 
-    <script type="text/babel">
-        const { useState, useEffect } = React;
+<script type="text/babel">
+    const { useState, useEffect } = React;
 
-        function AttendanceTracker() {
-            const loadData = (key, defaultValue) => {
-                try {
-                    const saved = localStorage.getItem(key);
-                    return saved ? JSON.parse(saved) : defaultValue;
-                } catch {
-                    return defaultValue;
-                }
-            };
+    function AttendanceTracker() {
+        const loadData = (key, defaultValue) => {
+            try {
+                const saved = localStorage.getItem(key);
+                return saved ? JSON.parse(saved) : defaultValue;
+            } catch {
+                return defaultValue;
+            }
+        };
 
-            const [view, setView] = useState('student');
-            const [instructorView, setInstructorView] = useState('dashboard');
-            const [authenticated, setAuthenticated] = useState(false);
-            const [password, setPassword] = useState('');
-            const [error, setError] = useState('');
-            
-            const [classes, setClasses] = useState(() => loadData('classes', []));
-            const [selectedClass, setSelectedClass] = useState(null);
-            const [sessions, setSessions] = useState(() => loadData('sessions', []));
-            const [currentSession, setCurrentSession] = useState(null);
-            const [currentCode, setCurrentCode] = useState('');
-            const [qrDataUrl, setQrDataUrl] = useState('');
-            const [timeRemaining, setTimeRemaining] = useState(0);
-            
-            const [settings, setSettings] = useState(() => loadData('settings', {
+        const [view, setView] = useState('student');
+        const [instructorView, setInstructorView] = useState('dashboard');
+        const [authenticated, setAuthenticated] = useState(false);
+        const [password, setPassword] = useState('');
+        const [error, setError] = useState('');
+
+        // Instructor password (changeable, stored in localStorage)
+        const [instructorPassword, setInstructorPassword] = useState(() => {
+            const saved = localStorage.getItem('instructorPassword');
+            return saved || 'instructor123';
+        });
+
+        const [classes, setClasses] = useState(() => loadData('classes', []));
+        const [selectedClass, setSelectedClass] = useState(null);
+        const [sessions, setSessions] = useState(() => loadData('sessions', []));
+        const [currentSession, setCurrentSession] = useState(null);
+        const [currentCode, setCurrentCode] = useState('');
+        const [qrDataUrl, setQrDataUrl] = useState('');
+        const [timeRemaining, setTimeRemaining] = useState(0);
+
+        // Settings with new auto-start + early check-in
+        const [settings, setSettings] = useState(() => {
+            const saved = loadData('settings', {});
+            return {
                 presentUntil: 5,
                 tardyUntil: 15,
-                codeRefreshInterval: 2
-            }));
-            
-            const [attendance, setAttendance] = useState(() => loadData('attendance', []));
-            const [studentCode, setStudentCode] = useState('');
-            const [studentName, setStudentName] = useState('');
-            const [checkInMessage, setCheckInMessage] = useState('');
-            
-            const [newClassName, setNewClassName] = useState('');
-            const [newSessionDate, setNewSessionDate] = useState('');
-            const [newSessionTime, setNewSessionTime] = useState('');
-            const [newSessionName, setNewSessionName] = useState('');
-            const [bulkCount, setBulkCount] = useState(1);
-            const [bulkInterval, setBulkInterval] = useState('daily');
-            const [selectedDays, setSelectedDays] = useState([]);
-            const [repeatWeeks, setRepeatWeeks] = useState(1);
-            const [useCalendar, setUseCalendar] = useState(true);
-            const [editingSession, setEditingSession] = useState(null);
-            const [editSessionData, setEditSessionData] = useState({});
-
-            useEffect(() => {
-                localStorage.setItem('classes', JSON.stringify(classes));
-            }, [classes]);
-
-            useEffect(() => {
-                localStorage.setItem('sessions', JSON.stringify(sessions));
-            }, [sessions]);
-
-            useEffect(() => {
-                localStorage.setItem('settings', JSON.stringify(settings));
-            }, [settings]);
-
-            useEffect(() => {
-                localStorage.setItem('attendance', JSON.stringify(attendance));
-            }, [attendance]);
-
-            const login = () => {
-                if (password === 'instructor123') {
-                    setAuthenticated(true);
-                    setError('');
-                } else {
-                    setError('Incorrect password');
-                    setTimeout(() => setError(''), 3000);
-                }
+                codeRefreshInterval: 2,
+                autoStartSessions: false,
+                earlyCheckinMinutes: 0,
+                ...saved
             };
+        });
 
-            const addClass = () => {
-                if (!newClassName.trim()) {
-                    alert('Please enter a class name');
+        const [attendance, setAttendance] = useState(() => loadData('attendance', []));
+        const [studentCode, setStudentCode] = useState('');
+        const [studentName, setStudentName] = useState('');
+        const [checkInMessage, setCheckInMessage] = useState('');
+
+        const [newClassName, setNewClassName] = useState('');
+        const [newSessionDate, setNewSessionDate] = useState('');
+        const [newSessionTime, setNewSessionTime] = useState('');
+        const [newSessionName, setNewSessionName] = useState('');
+        const [bulkCount, setBulkCount] = useState(1);
+        const [bulkInterval, setBulkInterval] = useState('daily');
+        const [selectedDays, setSelectedDays] = useState([]);
+        const [repeatWeeks, setRepeatWeeks] = useState(1);
+        const [useCalendar, setUseCalendar] = useState(true);
+        const [editingSession, setEditingSession] = useState(null);
+        const [editSessionData, setEditSessionData] = useState({});
+
+        // Password settings UI state
+        const [newPasswordInput, setNewPasswordInput] = useState('');
+        const [passwordMessage, setPasswordMessage] = useState('');
+
+        useEffect(() => {
+            localStorage.setItem('classes', JSON.stringify(classes));
+        }, [classes]);
+
+        useEffect(() => {
+            localStorage.setItem('sessions', JSON.stringify(sessions));
+        }, [sessions]);
+
+        useEffect(() => {
+            localStorage.setItem('settings', JSON.stringify(settings));
+        }, [settings]);
+
+        useEffect(() => {
+            localStorage.setItem('attendance', JSON.stringify(attendance));
+        }, [attendance]);
+
+        useEffect(() => {
+            localStorage.setItem('instructorPassword', instructorPassword);
+        }, [instructorPassword]);
+
+        const login = () => {
+            if (password === instructorPassword) {
+                setAuthenticated(true);
+                setError('');
+            } else {
+                setError('Incorrect password');
+                setTimeout(() => setError(''), 3000);
+            }
+        };
+
+        const addClass = () => {
+            if (!newClassName.trim()) {
+                alert('Please enter a class name');
+                return;
+            }
+            setClasses([...classes, {
+                id: Date.now(),
+                name: newClassName,
+                createdAt: new Date().toISOString()
+            }]);
+            setNewClassName('');
+        };
+
+        const deleteClass = (classId) => {
+            if (confirm('Delete this class and all its sessions?')) {
+                setClasses(classes.filter(c => c.id !== classId));
+                setSessions(sessions.filter(s => s.classId !== classId));
+                setAttendance(attendance.filter(a => a.classId !== classId));
+            }
+        };
+
+        const addSession = () => {
+            if (!selectedClass) {
+                alert('Please select a class first');
+                return;
+            }
+            if (!newSessionTime) {
+                alert('Please enter time');
+                return;
+            }
+
+            const newSessions = [];
+
+            if (useCalendar) {
+                // Calendar mode
+                if (!newSessionDate) {
+                    alert('Please enter date');
                     return;
                 }
-                setClasses([...classes, {
-                    id: Date.now(),
-                    name: newClassName,
-                    createdAt: new Date().toISOString()
-                }]);
-                setNewClassName('');
-            };
+                const startDate = new Date(newSessionDate + 'T00:00:00');
 
-            const deleteClass = (classId) => {
-                if (confirm('Delete this class and all its sessions?')) {
-                    setClasses(classes.filter(c => c.id !== classId));
-                    setSessions(sessions.filter(s => s.classId !== classId));
-                    setAttendance(attendance.filter(a => a.classId !== classId));
-                }
-            };
+                for (let i = 0; i < bulkCount; i++) {
+                    const sessionDate = new Date(startDate);
 
-            const addSession = () => {
-                if (!selectedClass) {
-                    alert('Please select a class first');
-                    return;
-                }
-                if (!newSessionTime) {
-                    alert('Please enter time');
-                    return;
-                }
-                
-                const newSessions = [];
-                
-                if (useCalendar) {
-                    // Calendar mode
-                    if (!newSessionDate) {
-                        alert('Please enter date');
-                        return;
+                    if (bulkInterval === 'daily') {
+                        sessionDate.setDate(startDate.getDate() + i);
+                    } else if (bulkInterval === 'weekly') {
+                        sessionDate.setDate(startDate.getDate() + (i * 7));
+                    } else if (bulkInterval === 'biweekly') {
+                        sessionDate.setDate(startDate.getDate() + (i * 14));
                     }
-                    const startDate = new Date(newSessionDate + 'T00:00:00');
-                    
-                    for (let i = 0; i < bulkCount; i++) {
-                        const sessionDate = new Date(startDate);
-                        
-                        if (bulkInterval === 'daily') {
-                            sessionDate.setDate(startDate.getDate() + i);
-                        } else if (bulkInterval === 'weekly') {
-                            sessionDate.setDate(startDate.getDate() + (i * 7));
-                        } else if (bulkInterval === 'biweekly') {
-                            sessionDate.setDate(startDate.getDate() + (i * 14));
-                        }
-                        
-                        if ((bulkInterval === 'weekly' || bulkInterval === 'biweekly') && (sessionDate.getDay() === 0 || sessionDate.getDay() === 6)) {
-                            continue;
-                        }
-                        
-                        const sessionName = bulkCount > 1 ? `${newSessionName || 'Session'} ${i + 1}` : (newSessionName || 'Session');
-                        
+
+                    if ((bulkInterval === 'weekly' || bulkInterval === 'biweekly') && (sessionDate.getDay() === 0 || sessionDate.getDay() === 6)) {
+                        continue;
+                    }
+
+                    const sessionName = bulkCount > 1 ? `${newSessionName || 'Session'} ${i + 1}` : (newSessionName || 'Session');
+
+                    newSessions.push({
+                        id: Date.now() + i,
+                        classId: selectedClass.id,
+                        className: selectedClass.name,
+                        date: sessionDate.toISOString().split('T')[0],
+                        time: newSessionTime,
+                        name: sessionName,
+                        status: 'scheduled',
+                        createdAt: new Date().toISOString()
+                    });
+                }
+            } else {
+                // Day selector mode
+                if (selectedDays.length === 0) {
+                    alert('Please select at least one day of the week');
+                    return;
+                }
+                if (!newSessionDate) {
+                    alert('Please select a start date');
+                    return;
+                }
+
+                const startDate = new Date(newSessionDate + 'T00:00:00');
+                const endDate = new Date(startDate);
+                endDate.setDate(startDate.getDate() + (repeatWeeks * 7));
+
+                let sessionCount = 0;
+                for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                    if (selectedDays.includes(d.getDay())) {
+                        const sessionName = selectedDays.length > 1 || repeatWeeks > 1
+                            ? `${newSessionName || 'Session'} ${sessionCount + 1}`
+                            : (newSessionName || 'Session');
+
                         newSessions.push({
-                            id: Date.now() + i,
+                            id: Date.now() + sessionCount,
                             classId: selectedClass.id,
                             className: selectedClass.name,
-                            date: sessionDate.toISOString().split('T')[0],
+                            date: d.toISOString().split('T')[0],
                             time: newSessionTime,
                             name: sessionName,
                             status: 'scheduled',
                             createdAt: new Date().toISOString()
                         });
-                    }
-                } else {
-                    // Day selector mode
-                    if (selectedDays.length === 0) {
-                        alert('Please select at least one day of the week');
-                        return;
-                    }
-                    if (!newSessionDate) {
-                        alert('Please select a start date');
-                        return;
-                    }
-                    
-                    const startDate = new Date(newSessionDate + 'T00:00:00');
-                    const endDate = new Date(startDate);
-                    endDate.setDate(startDate.getDate() + (repeatWeeks * 7));
-                    
-                    let sessionCount = 0;
-                    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-                        if (selectedDays.includes(d.getDay())) {
-                            const sessionName = selectedDays.length > 1 || repeatWeeks > 1 
-                                ? `${newSessionName || 'Session'} ${sessionCount + 1}` 
-                                : (newSessionName || 'Session');
-                            
-                            newSessions.push({
-                                id: Date.now() + sessionCount,
-                                classId: selectedClass.id,
-                                className: selectedClass.name,
-                                date: d.toISOString().split('T')[0],
-                                time: newSessionTime,
-                                name: sessionName,
-                                status: 'scheduled',
-                                createdAt: new Date().toISOString()
-                            });
-                            sessionCount++;
-                        }
+                        sessionCount++;
                     }
                 }
-                
-                setSessions([...sessions, ...newSessions]);
-                setNewSessionDate('');
-                setNewSessionTime('');
-                setNewSessionName('');
-                setBulkCount(1);
-                setSelectedDays([]);
-                setRepeatWeeks(1);
+            }
+
+            setSessions([...sessions, ...newSessions]);
+            setNewSessionDate('');
+            setNewSessionTime('');
+            setNewSessionName('');
+            setBulkCount(1);
+            setSelectedDays([]);
+            setRepeatWeeks(1);
+        };
+
+        const toggleDay = (day) => {
+            if (selectedDays.includes(day)) {
+                setSelectedDays(selectedDays.filter(d => d !== day));
+            } else {
+                setSelectedDays([...selectedDays, day]);
+            }
+        };
+
+        const copySession = (session) => {
+            const copiedSession = {
+                ...session,
+                id: Date.now(),
+                name: `${session.name} (Copy)`,
+                status: 'scheduled',
+                createdAt: new Date().toISOString()
+            };
+            delete copiedSession.startTime;
+            delete copiedSession.endTime;
+            delete copiedSession.code;
+            setSessions([...sessions, copiedSession]);
+        };
+
+        const startEditSession = (session) => {
+            setEditingSession(session.id);
+            setEditSessionData({
+                date: session.date,
+                time: session.time,
+                name: session.name
+            });
+        };
+
+        const saveEditSession = () => {
+            setSessions(sessions.map(s =>
+                s.id === editingSession ? { ...s, ...editSessionData } : s
+            ));
+            setEditingSession(null);
+            setEditSessionData({});
+        };
+
+        const cancelEdit = () => {
+            setEditingSession(null);
+            setEditSessionData({});
+        };
+
+        const generateCode = () => {
+            return Math.floor(100000 + Math.random() * 900000).toString();
+        };
+
+        // REAL QR image URL using an external QR generator service
+        const generateQRCode = (code) => {
+            const encoded = encodeURIComponent(code);
+            return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encoded}`;
+        };
+
+        const startSession = (session) => {
+            const code = generateCode();
+            setCurrentCode(code);
+            setQrDataUrl(generateQRCode(code));
+            setTimeRemaining(settings.codeRefreshInterval * 60);
+
+            const updatedSession = {
+                ...session,
+                status: 'active',
+                startTime: Date.now(),
+                code: code
             };
 
-            const toggleDay = (day) => {
-                if (selectedDays.includes(day)) {
-                    setSelectedDays(selectedDays.filter(d => d !== day));
-                } else {
-                    setSelectedDays([...selectedDays, day]);
-                }
-            };
+            setSessions(sessions.map(s => s.id === session.id ? updatedSession : s));
+            setCurrentSession(updatedSession);
+            setInstructorView('dashboard');
+        };
 
-            const copySession = (session) => {
-                const copiedSession = {
-                    ...session,
-                    id: Date.now(),
-                    name: `${session.name} (Copy)`,
-                    status: 'scheduled',
-                    createdAt: new Date().toISOString()
-                };
-                delete copiedSession.startTime;
-                delete copiedSession.endTime;
-                delete copiedSession.code;
-                setSessions([...sessions, copiedSession]);
-            };
-
-            const startEditSession = (session) => {
-                setEditingSession(session.id);
-                setEditSessionData({
-                    date: session.date,
-                    time: session.time,
-                    name: session.name
-                });
-            };
-
-            const saveEditSession = () => {
-                setSessions(sessions.map(s => 
-                    s.id === editingSession ? {...s, ...editSessionData} : s
+        const endSession = () => {
+            if (currentSession) {
+                setSessions(sessions.map(s =>
+                    s.id === currentSession.id ? { ...s, status: 'completed', endTime: Date.now() } : s
                 ));
-                setEditingSession(null);
-                setEditSessionData({});
-            };
+            }
+            setCurrentSession(null);
+            setCurrentCode('');
+            setQrDataUrl('');
+            setTimeRemaining(0);
+        };
 
-            const cancelEdit = () => {
-                setEditingSession(null);
-                setEditSessionData({});
-            };
-
-            const generateCode = () => {
-                return Math.floor(100000 + Math.random() * 900000).toString();
-            };
-
-            const generateQRCode = (code) => {
-                const size = 200;
-                const canvas = document.createElement('canvas');
-                canvas.width = size;
-                canvas.height = size;
-                const ctx = canvas.getContext('2d');
-                
-                ctx.fillStyle = '#FFFFFF';
-                ctx.fillRect(0, 0, size, size);
-                ctx.fillStyle = '#000000';
-                const gridSize = 8;
-                const cellSize = size / gridSize;
-                
-                let seed = parseInt(code);
-                for (let i = 0; i < gridSize; i++) {
-                    for (let j = 0; j < gridSize; j++) {
-                        seed = (seed * 9301 + 49297) % 233280;
-                        if (seed / 233280 > 0.5) {
-                            ctx.fillRect(j * cellSize, i * cellSize, cellSize, cellSize);
-                        }
-                    }
-                }
-                
-                ctx.fillStyle = '#FFFFFF';
-                ctx.fillRect(size/4, size/4, size/2, size/2);
-                ctx.fillStyle = '#000000';
-                ctx.font = 'bold 24px monospace';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(code, size/2, size/2);
-                
-                return canvas.toDataURL();
-            };
-
-            const startSession = (session) => {
-                const code = generateCode();
-                setCurrentCode(code);
-                setQrDataUrl(generateQRCode(code));
-                setTimeRemaining(settings.codeRefreshInterval * 60);
-                
-                const updatedSession = {
-                    ...session,
-                    status: 'active',
-                    startTime: Date.now(),
-                    code: code
-                };
-                
-                setSessions(sessions.map(s => s.id === session.id ? updatedSession : s));
-                setCurrentSession(updatedSession);
-                setInstructorView('dashboard');
-            };
-
-            const endSession = () => {
-                if (currentSession) {
-                    setSessions(sessions.map(s => 
-                        s.id === currentSession.id ? {...s, status: 'completed', endTime: Date.now()} : s
-                    ));
-                }
-                setCurrentSession(null);
-                setCurrentCode('');
-                setQrDataUrl('');
-                setTimeRemaining(0);
-            };
-
-            const cancelSession = (sessionId) => {
-                if (confirm('Cancel this session?')) {
-                    setSessions(sessions.map(s => 
-                        s.id === sessionId ? {...s, status: 'cancelled'} : s
-                    ));
-                }
-            };
-
-            const deleteSession = (sessionId) => {
-                if (confirm('Delete this session and all attendance records?')) {
-                    setSessions(sessions.filter(s => s.id !== sessionId));
-                    setAttendance(attendance.filter(a => a.sessionId !== sessionId));
-                }
-            };
-
-            const markExcused = (attendanceId) => {
-                setAttendance(attendance.map(a => 
-                    a.id === attendanceId ? {...a, status: 'Excused'} : a
+        const cancelSession = (sessionId) => {
+            if (confirm('Cancel this session?')) {
+                setSessions(sessions.map(s =>
+                    s.id === sessionId ? { ...s, status: 'cancelled' } : s
                 ));
-            };
+            }
+        };
 
-            useEffect(() => {
-                if (!currentSession) return;
-                const timer = setInterval(() => {
-                    setTimeRemaining(prev => {
-                        if (prev <= 1) {
-                            const newCode = generateCode();
-                            setCurrentCode(newCode);
-                            setQrDataUrl(generateQRCode(newCode));
-                            return settings.codeRefreshInterval * 60;
-                        }
-                        return prev - 1;
-                    });
-                }, 1000);
-                return () => clearInterval(timer);
-            }, [currentSession, settings.codeRefreshInterval]);
+        const deleteSession = (sessionId) => {
+            if (confirm('Delete this session and all attendance records?')) {
+                setSessions(sessions.filter(s => s.id !== sessionId));
+                setAttendance(attendance.filter(a => a.sessionId !== sessionId));
+            }
+        };
 
-            const getAttendanceStatus = () => {
-                if (!currentSession || !currentSession.startTime) return 'Absent';
-                const minutesElapsed = (Date.now() - currentSession.startTime) / 1000 / 60;
-                if (minutesElapsed <= settings.presentUntil) return 'Present';
-                if (minutesElapsed <= settings.tardyUntil) return 'Tardy';
-                return 'Absent';
-            };
+        const markExcused = (attendanceId) => {
+            setAttendance(attendance.map(a =>
+                a.id === attendanceId ? { ...a, status: 'Excused' } : a
+            ));
+        };
 
-            const handleCheckIn = () => {
-                if (!currentSession) {
-                    setCheckInMessage('No active session');
-                    return;
-                }
-                if (!studentName.trim()) {
-                    setCheckInMessage('Please enter your name');
-                    return;
-                }
-                if (studentCode !== currentCode) {
-                    setCheckInMessage('Invalid code. Please try again.');
-                    return;
-                }
-                const alreadyCheckedIn = attendance.find(
-                    a => a.sessionId === currentSession.id && a.name.toLowerCase() === studentName.toLowerCase()
-                );
-                if (alreadyCheckedIn) {
-                    setCheckInMessage('You have already checked in!');
-                    return;
-                }
-                const status = getAttendanceStatus();
-                setAttendance([...attendance, {
-                    id: Date.now(),
-                    sessionId: currentSession.id,
-                    classId: currentSession.classId,
-                    className: currentSession.className,
-                    sessionName: currentSession.name,
-                    name: studentName,
-                    status: status,
-                    time: new Date().toLocaleTimeString(),
-                    date: new Date().toLocaleDateString(),
-                    timestamp: Date.now()
-                }]);
-                setCheckInMessage(`✓ Checked in as ${status}`);
-                setStudentName('');
-                setStudentCode('');
-                setTimeout(() => setCheckInMessage(''), 3000);
-            };
-
-            const exportToCSV = (classId = null) => {
-                const recordsToExport = classId ? attendance.filter(a => a.classId === classId) : attendance;
-                if (recordsToExport.length === 0) {
-                    alert('No attendance records to export!');
-                    return;
-                }
-                const headers = ['Date', 'Class', 'Session', 'Student Name', 'Status', 'Check-in Time'];
-                const rows = recordsToExport.map(record => [
-                    record.date, record.className, record.sessionName, record.name, record.status, record.time
-                ]);
-                let csvContent = headers.join(',') + '\n';
-                rows.forEach(row => {
-                    csvContent += row.map(cell => `"${cell}"`).join(',') + '\n';
+        // Code refresh timer
+        useEffect(() => {
+            if (!currentSession) return;
+            const timer = setInterval(() => {
+                setTimeRemaining(prev => {
+                    if (prev <= 1) {
+                        const newCode = generateCode();
+                        setCurrentCode(newCode);
+                        setQrDataUrl(generateQRCode(newCode));
+                        return settings.codeRefreshInterval * 60;
+                    }
+                    return prev - 1;
                 });
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(blob);
-                link.download = `attendance_${new Date().toISOString().split('T')[0]}.csv`;
-                link.click();
-            };
+            }, 1000);
+            return () => clearInterval(timer);
+        }, [currentSession, settings.codeRefreshInterval]);
 
-            const formatTime = (seconds) => {
-                const mins = Math.floor(seconds / 60);
-                const secs = seconds % 60;
-                return `${mins}:${secs.toString().padStart(2, '0')}`;
-            };
+        const getAttendanceStatus = () => {
+            if (!currentSession || !currentSession.startTime) return 'Absent';
+            const minutesElapsed = (Date.now() - currentSession.startTime) / 1000 / 60;
+            if (minutesElapsed <= settings.presentUntil) return 'Present';
+            if (minutesElapsed <= settings.tardyUntil) return 'Tardy';
+            return 'Absent';
+        };
 
-            const getSessionAttendance = (sessionId) => {
-                return attendance.filter(a => a.sessionId === sessionId);
-            };
+        const handleCheckIn = () => {
+            if (!currentSession) {
+                setCheckInMessage('No active session');
+                return;
+            }
+            if (!studentName.trim()) {
+                setCheckInMessage('Please enter your name');
+                return;
+            }
+            if (studentCode !== currentCode) {
+                setCheckInMessage('Invalid code. Please try again.');
+                return;
+            }
+            const alreadyCheckedIn = attendance.find(
+                a => a.sessionId === currentSession.id && a.name.toLowerCase() === studentName.toLowerCase()
+            );
+            if (alreadyCheckedIn) {
+                setCheckInMessage('You have already checked in!');
+                return;
+            }
+            const status = getAttendanceStatus();
+            setAttendance([...attendance, {
+                id: Date.now(),
+                sessionId: currentSession.id,
+                classId: currentSession.classId,
+                className: currentSession.className,
+                sessionName: currentSession.name,
+                name: studentName,
+                status: status,
+                time: new Date().toLocaleTimeString(),
+                date: new Date().toLocaleDateString(),
+                timestamp: Date.now()
+            }]);
+            setCheckInMessage(`✓ Checked in as ${status}`);
+            setStudentName('');
+            setStudentCode('');
+            setTimeout(() => setCheckInMessage(''), 3000);
+        };
 
-            const getClassSessions = (classId) => {
-                return sessions.filter(s => s.classId === classId);
-            };
+        const exportToCSV = (classId = null) => {
+            const recordsToExport = classId ? attendance.filter(a => a.classId === classId) : attendance;
+            if (recordsToExport.length === 0) {
+                alert('No attendance records to export!');
+                return;
+            }
+            const headers = ['Date', 'Class', 'Session', 'Student Name', 'Status', 'Check-in Time'];
+            const rows = recordsToExport.map(record => [
+                record.date, record.className, record.sessionName, record.name, record.status, record.time
+            ]);
+            let csvContent = headers.join(',') + '\n';
+            rows.forEach(row => {
+                csvContent += row.map(cell => `"${cell}"`).join(',') + '\n';
+            });
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `attendance_${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+        };
 
-            const styles = {
-                container: {
-                    minHeight: '100vh',
-                    padding: '16px'
-                },
-                maxWidth: {
-                    maxWidth: '1200px',
-                    margin: '0 auto'
-                },
-                card: {
-                    background: 'white',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-                    padding: '24px',
-                    marginBottom: '24px'
-                },
-                button: {
-                    padding: '8px 24px',
-                    borderRadius: '8px',
-                    fontWeight: '500',
-                    border: 'none',
-                    cursor: 'pointer'
-                },
-                input: {
-                    width: '100%',
-                    padding: '12px 16px',
-                    border: '1px solid #D1D5DB',
-                    borderRadius: '8px',
-                    fontSize: '1rem'
-                }
-            };
+        const formatTime = (seconds) => {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        };
 
-            // Helper to parse "YYYY-MM-DD" as a local date (prevents timezone shift)
-            const parseLocalDate = (dateStr) => {
-                if (!dateStr) return new Date();
-                const [year, month, day] = dateStr.split('-').map(Number);
-                return new Date(year, month - 1, day);
-            };
+        const getSessionAttendance = (sessionId) => {
+            return attendance.filter(a => a.sessionId === sessionId);
+        };
 
-            return (
-                <div style={styles.container}>
-                    <div style={styles.maxWidth}>
-                        <div style={styles.card}>
-                            <h1 style={{fontSize: '2rem', fontWeight: 'bold', color: '#1F2937', marginBottom: '16px'}}>
-                                College Attendance Tracker
-                            </h1>
-                            <div style={{display: 'flex', gap: '8px'}}>
-                                <button 
-                                    onClick={() => setView('instructor')}
-                                    style={{
-                                        ...styles.button,
-                                        background: view === 'instructor' ? '#4F46E5' : '#E5E7EB',
-                                        color: view === 'instructor' ? 'white' : '#374151'
-                                    }}
-                                >
-                                    Instructor
-                                </button>
-                                <button 
-                                    onClick={() => setView('student')}
-                                    style={{
-                                        ...styles.button,
-                                        background: view === 'student' ? '#4F46E5' : '#E5E7EB',
-                                        color: view === 'student' ? 'white' : '#374151'
-                                    }}
-                                >
-                                    Student
-                                </button>
-                            </div>
+        const getClassSessions = (classId) => {
+            return sessions.filter(s => s.classId === classId);
+        };
+
+        const styles = {
+            container: {
+                minHeight: '100vh',
+                padding: '16px'
+            },
+            maxWidth: {
+                maxWidth: '1200px',
+                margin: '0 auto'
+            },
+            card: {
+                background: 'white',
+                borderRadius: '8px',
+                boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                padding: '24px',
+                marginBottom: '24px'
+            },
+            button: {
+                padding: '8px 24px',
+                borderRadius: '8px',
+                fontWeight: '500',
+                border: 'none',
+                cursor: 'pointer'
+            },
+            input: {
+                width: '100%',
+                padding: '12px 16px',
+                border: '1px solid #D1D5DB',
+                borderRadius: '8px',
+                fontSize: '1rem'
+            }
+        };
+
+        // Parse "YYYY-MM-DD" as a local date (no timezone shift)
+        const parseLocalDate = (dateStr) => {
+            if (!dateStr) return new Date();
+            const [year, month, day] = dateStr.split('-').map(Number);
+            return new Date(year, month - 1, day);
+        };
+
+        // Combine session date + time into a local Date
+        const getSessionDateTime = (session) => {
+            if (!session.date) return null;
+            const [year, month, day] = session.date.split('-').map(Number);
+            let hours = 0, minutes = 0;
+            if (session.time) {
+                const parts = session.time.split(':').map(Number);
+                hours = parts[0] || 0;
+                minutes = parts[1] || 0;
+            }
+            return new Date(year, month - 1, day, hours, minutes);
+        };
+
+        // AUTO-START SESSIONS + EARLY CHECK-IN WINDOW
+        useEffect(() => {
+            if (!settings.autoStartSessions) return;
+
+            const interval = setInterval(() => {
+                if (currentSession) return; // don't auto-start if one is active
+
+                const now = new Date();
+                const earlyMs = (settings.earlyCheckinMinutes || 0) * 60000;
+
+                const candidates = sessions
+                    .filter(s => s.status === 'scheduled' && s.date && s.time)
+                    .map(s => ({ session: s, dt: getSessionDateTime(s) }))
+                    .filter(({ dt }) => dt && now >= new Date(dt.getTime() - earlyMs));
+
+                if (candidates.length === 0) return;
+
+                // Start the earliest candidate
+                candidates.sort((a, b) => a.dt - b.dt);
+                startSession(candidates[0].session);
+            }, 30000); // check every 30 seconds
+
+            return () => clearInterval(interval);
+        }, [settings.autoStartSessions, settings.earlyCheckinMinutes, sessions, currentSession]);
+
+        // Update instructor password
+        const updatePassword = () => {
+            if (!newPasswordInput.trim()) {
+                setPasswordMessage('Password cannot be empty.');
+                setTimeout(() => setPasswordMessage(''), 3000);
+                return;
+            }
+            setInstructorPassword(newPasswordInput.trim());
+            setNewPasswordInput('');
+            setPasswordMessage('Password updated.');
+            setTimeout(() => setPasswordMessage(''), 3000);
+        };
+
+        return (
+            <div style={styles.container}>
+                <div style={styles.maxWidth}>
+                    <div style={styles.card}>
+                        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#1F2937', marginBottom: '16px' }}>
+                            College Attendance Tracker
+                        </h1>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                                onClick={() => setView('instructor')}
+                                style={{
+                                    ...styles.button,
+                                    background: view === 'instructor' ? '#4F46E5' : '#E5E7EB',
+                                    color: view === 'instructor' ? 'white' : '#374151'
+                                }}
+                            >
+                                Instructor
+                            </button>
+                            <button
+                                onClick={() => setView('student')}
+                                style={{
+                                    ...styles.button,
+                                    background: view === 'student' ? '#4F46E5' : '#E5E7EB',
+                                    color: view === 'student' ? 'white' : '#374151'
+                                }}
+                            >
+                                Student
+                            </button>
                         </div>
+                    </div>
 
-                        {view === 'instructor' && !authenticated && (
-                            <div style={{...styles.card, maxWidth: '400px', margin: '0 auto'}}>
-                                <h2 style={{fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '24px', textAlign: 'center'}}>
-                                    Instructor Access
-                                </h2>
-                                <div>
-                                    <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '8px'}}>
-                                        Password
-                                    </label>
-                                    <input
-                                        type="password"
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        onKeyPress={(e) => e.key === 'Enter' && login()}
-                                        placeholder="Enter instructor password"
-                                        style={styles.input}
-                                    />
-                                </div>
-                                <button
-                                    onClick={login}
-                                    style={{
-                                        ...styles.button,
-                                        width: '100%',
-                                        padding: '12px',
-                                        background: '#4F46E5',
-                                        color: 'white',
-                                        marginTop: '16px'
-                                    }}
-                                >
-                                    Login
-                                </button>
-                                {error && (
-                                    <div style={{padding: '12px', background: '#FEE2E2', color: '#991B1B', borderRadius: '8px', textAlign: 'center', marginTop: '12px'}}>
-                                        {error}
-                                    </div>
-                                )}
-                                <p style={{fontSize: '0.75rem', color: '#6B7280', textAlign: 'center', marginTop: '12px'}}>
-                                    Default password: instructor123
-                                </p>
+                    {view === 'instructor' && !authenticated && (
+                        <div style={{ ...styles.card, maxWidth: '400px', margin: '0 auto' }}>
+                            <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '24px', textAlign: 'center' }}>
+                                Instructor Access
+                            </h2>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '8px' }}>
+                                    Password
+                                </label>
+                                <input
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    onKeyPress={(e) => e.key === 'Enter' && login()}
+                                    placeholder="Enter instructor password"
+                                    style={styles.input}
+                                />
                             </div>
-                        )}
-
-                        {view === 'instructor' && authenticated && (
-                            <div style={{...styles.card, textAlign: 'center'}}>
-                                <div style={{fontSize: '4rem', marginBottom: '16px'}}>📚</div>
-                                <h3 style={{fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '8px'}}>
-                                    Multi-Class Attendance System Ready!
-                                </h3>
-                                <p style={{color: '#6B7280', marginBottom: '16px'}}>
-                                    {classes.length} classes, {sessions.length} sessions, {attendance.length} attendance records
-                                </p>
-                                <div style={{display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap', marginTop: '24px'}}>
-                                    <button onClick={() => setInstructorView('dashboard')} style={{...styles.button, background: instructorView === 'dashboard' ? '#4F46E5' : '#E5E7EB', color: instructorView === 'dashboard' ? 'white' : '#374151'}}>Dashboard</button>
-                                    <button onClick={() => setInstructorView('classes')} style={{...styles.button, background: instructorView === 'classes' ? '#4F46E5' : '#E5E7EB', color: instructorView === 'classes' ? 'white' : '#374151'}}>Classes</button>
-                                    <button onClick={() => setInstructorView('sessions')} style={{...styles.button, background: instructorView === 'sessions' ? '#4F46E5' : '#E5E7EB', color: instructorView === 'sessions' ? 'white' : '#374151'}}>Sessions</button>
-                                    <button onClick={() => setInstructorView('settings')} style={{...styles.button, background: instructorView === 'settings' ? '#4F46E5' : '#E5E7EB', color: instructorView === 'settings' ? 'white' : '#374151'}}>Settings</button>
+                            <button
+                                onClick={login}
+                                style={{
+                                    ...styles.button,
+                                    width: '100%',
+                                    padding: '12px',
+                                    background: '#4F46E5',
+                                    color: 'white',
+                                    marginTop: '16px'
+                                }}
+                            >
+                                Login
+                            </button>
+                            {error && (
+                                <div style={{
+                                    padding: '12px',
+                                    background: '#FEE2E2',
+                                    color: '#991B1B',
+                                    borderRadius: '8px',
+                                    textAlign: 'center',
+                                    marginTop: '12px'
+                                }}>
+                                    {error}
                                 </div>
+                            )}
+                            <p style={{ fontSize: '0.75rem', color: '#6B7280', textAlign: 'center', marginTop: '12px' }}>
+                                Initial default password: <code>instructor123</code> (you can change this under Settings).
+                            </p>
+                        </div>
+                    )}
 
-                                {instructorView === 'classes' && (
-                                    <div style={{marginTop: '24px'}}>
-                                        <div style={{display: 'flex', gap: '8px', marginBottom: '16px'}}>
-                                            <input
-                                                value={newClassName}
-                                                onChange={(e) => setNewClassName(e.target.value)}
-                                                placeholder="New class name"
-                                                style={{...styles.input, width: 'auto', flex: 1}}
-                                            />
-                                            <button onClick={addClass} style={{...styles.button, background: '#4F46E5', color: 'white'}}>Add Class</button>
-                                        </div>
-                                        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '16px', textAlign: 'left'}}>
-                                            {classes.map(c => (
-                                                <div key={c.id} style={{border: '1px solid #E5E7EB', borderRadius: '8px', padding: '16px'}}>
-                                                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'start'}}>
-                                                        <h4 style={{fontWeight: 'bold', margin: 0}}>{c.name}</h4>
-                                                        <button onClick={() => deleteClass(c.id)} style={{background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: '1.2rem'}}>🗑️</button>
-                                                    </div>
-                                                    <p style={{fontSize: '0.875rem', color: '#6B7280', margin: '8px 0'}}>{getClassSessions(c.id).length} sessions</p>
-                                                    <button onClick={() => exportToCSV(c.id)} style={{fontSize: '0.875rem', color: '#4F46E5', background: 'none', border: 'none', cursor: 'pointer', padding: 0}}>📥 Export</button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
+                    {view === 'instructor' && authenticated && (
+                        <div style={{ ...styles.card, textAlign: 'center' }}>
+                            <div style={{ fontSize: '4rem', marginBottom: '16px' }}>📚</div>
+                            <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '8px' }}>
+                                Multi-Class Attendance System Ready!
+                            </h3>
+                            <p style={{ color: '#6B7280', marginBottom: '16px' }}>
+                                {classes.length} classes, {sessions.length} sessions, {attendance.length} attendance records
+                            </p>
+                            <div style={{
+                                display: 'flex',
+                                gap: '8px',
+                                justifyContent: 'center',
+                                flexWrap: 'wrap',
+                                marginTop: '24px'
+                            }}>
+                                <button onClick={() => setInstructorView('dashboard')}
+                                        style={{
+                                            ...styles.button,
+                                            background: instructorView === 'dashboard' ? '#4F46E5' : '#E5E7EB',
+                                            color: instructorView === 'dashboard' ? 'white' : '#374151'
+                                        }}>Dashboard
+                                </button>
+                                <button onClick={() => setInstructorView('classes')}
+                                        style={{
+                                            ...styles.button,
+                                            background: instructorView === 'classes' ? '#4F46E5' : '#E5E7EB',
+                                            color: instructorView === 'classes' ? 'white' : '#374151'
+                                        }}>Classes
+                                </button>
+                                <button onClick={() => setInstructorView('sessions')}
+                                        style={{
+                                            ...styles.button,
+                                            background: instructorView === 'sessions' ? '#4F46E5' : '#E5E7EB',
+                                            color: instructorView === 'sessions' ? 'white' : '#374151'
+                                        }}>Sessions
+                                </button>
+                                <button onClick={() => setInstructorView('settings')}
+                                        style={{
+                                            ...styles.button,
+                                            background: instructorView === 'settings' ? '#4F46E5' : '#E5E7EB',
+                                            color: instructorView === 'settings' ? 'white' : '#374151'
+                                        }}>Settings
+                                </button>
+                            </div>
 
-                                {instructorView === 'sessions' && (
-                                    <div style={{marginTop: '24px', textAlign: 'left'}}>
-                                        <h3 style={{fontWeight: 'bold', marginBottom: '16px'}}>Schedule New Session(s)</h3>
-                                        <select
-                                            value={selectedClass?.id || ''}
-                                            onChange={(e) => setSelectedClass(classes.find(c => c.id === parseInt(e.target.value)))}
-                                            style={{...styles.input, marginBottom: '12px'}}
-                                        >
-                                            <option value="">Choose class...</option>
-                                            {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                        </select>
-
-                                        {/* Mode Toggle */}
-                                        <div style={{display: 'flex', gap: '8px', marginBottom: '16px'}}>
-                                            <button 
-                                                onClick={() => setUseCalendar(true)} 
-                                                style={{
-                                                    ...styles.button, 
-                                                    background: useCalendar ? '#4F46E5' : '#E5E7EB', 
-                                                    color: useCalendar ? 'white' : '#374151',
-                                                    flex: 1
-                                                }}
-                                            >
-                                                📅 Calendar Mode
-                                            </button>
-                                            <button 
-                                                onClick={() => setUseCalendar(false)} 
-                                                style={{
-                                                    ...styles.button, 
-                                                    background: !useCalendar ? '#4F46E5' : '#E5E7EB', 
-                                                    color: !useCalendar ? 'white' : '#374151',
-                                                    flex: 1
-                                                }}
-                                            >
-                                                📆 Day Selector
-                                            </button>
-                                        </div>
-
-                                        {useCalendar ? (
-                                            // Calendar Mode
-                                            <>
-                                                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '12px'}}>
-                                                    <div>
-                                                        <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Start Date</label>
-                                                        <input type="date" value={newSessionDate} onChange={(e) => setNewSessionDate(e.target.value)} style={styles.input} />
-                                                    </div>
-                                                    <div>
-                                                        <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Time</label>
-                                                        <input type="time" value={newSessionTime} onChange={(e) => setNewSessionTime(e.target.value)} style={styles.input} />
-                                                    </div>
-                                                    <div>
-                                                        <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Session Name</label>
-                                                        <input value={newSessionName} onChange={(e) => setNewSessionName(e.target.value)} placeholder="Lecture, Lab, etc." style={styles.input} />
-                                                    </div>
-                                                </div>
-                                                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '12px'}}>
-                                                    <div>
-                                                        <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Number of Sessions</label>
-                                                        <input type="number" min="1" max="50" value={bulkCount} onChange={(e) => setBulkCount(parseInt(e.target.value) || 1)} style={styles.input} />
-                                                    </div>
-                                                    <div>
-                                                        <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Interval</label>
-                                                        <select value={bulkInterval} onChange={(e) => setBulkInterval(e.target.value)} style={styles.input}>
-                                                            <option value="daily">Daily</option>
-                                                            <option value="weekly">Weekly (skip weekends)</option>
-                                                            <option value="biweekly">Bi-weekly (skip weekends)</option>
-                                                        </select>
-                                                    </div>
-                                                </div>
-                                                {bulkCount > 1 && (
-                                                    <div style={{padding: '12px', background: '#DBEAFE', borderRadius: '8px', marginBottom: '12px', fontSize: '0.875rem', color: '#1E40AF'}}>
-                                                        ℹ️ This will create {bulkCount} sessions starting from {newSessionDate} ({bulkInterval})
-                                                    </div>
-                                                )}
-                                            </>
-                                        ) : (
-                                            // Day Selector Mode
-                                            <>
-                                                <div style={{marginBottom: '12px'}}>
-                                                    <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '8px'}}>Select Days of Week</label>
-                                                    <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: '8px'}}>
-                                                        {[
-                                                            {day: 1, name: 'Mon', emoji: '📘'},
-                                                            {day: 2, name: 'Tue', emoji: '📗'},
-                                                            {day: 3, name: 'Wed', emoji: '📙'},
-                                                            {day: 4, name: 'Thu', emoji: '📕'},
-                                                            {day: 5, name: 'Fri', emoji: '📔'},
-                                                            {day: 6, name: 'Sat', emoji: '📓'},
-                                                            {day: 0, name: 'Sun', emoji: '📒'}
-                                                        ].map(({day, name, emoji}) => (
-                                                            <button
-                                                                key={day}
-                                                                onClick={() => toggleDay(day)}
-                                                                style={{
-                                                                    padding: '12px 8px',
-                                                                    borderRadius: '8px',
-                                                                    border: '2px solid',
-                                                                    borderColor: selectedDays.includes(day) ? '#4F46E5' : '#E5E7EB',
-                                                                    background: selectedDays.includes(day) ? '#EEF2FF' : 'white',
-                                                                    cursor: 'pointer',
-                                                                    fontSize: '0.875rem',
-                                                                    fontWeight: selectedDays.includes(day) ? 'bold' : 'normal',
-                                                                    color: selectedDays.includes(day) ? '#4F46E5' : '#6B7280'
-                                                                }}
-                                                            >
-                                                                <div style={{fontSize: '1.5rem', marginBottom: '4px'}}>{emoji}</div>
-                                                                {name}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '12px'}}>
-                                                    <div>
-                                                        <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Start Date</label>
-                                                        <input type="date" value={newSessionDate} onChange={(e) => setNewSessionDate(e.target.value)} style={styles.input} />
-                                                    </div>
-                                                    <div>
-                                                        <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Time</label>
-                                                        <input type="time" value={newSessionTime} onChange={(e) => setNewSessionTime(e.target.value)} style={styles.input} />
-                                                    </div>
-                                                    <div>
-                                                        <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Repeat for (weeks)</label>
-                                                        <input type="number" min="1" max="20" value={repeatWeeks} onChange={(e) => setRepeatWeeks(parseInt(e.target.value) || 1)} style={styles.input} />
-                                                    </div>
-                                                    <div>
-                                                        <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Session Name</label>
-                                                        <input value={newSessionName} onChange={(e) => setNewSessionName(e.target.value)} placeholder="Lecture, Lab, etc." style={styles.input} />
-                                                    </div>
-                                                </div>
-                                                {selectedDays.length > 0 && repeatWeeks > 0 && (
-                                                    <div style={{padding: '12px', background: '#DBEAFE', borderRadius: '8px', marginBottom: '12px', fontSize: '0.875rem', color: '#1E40AF'}}>
-                                                        ℹ️ This will create sessions on {selectedDays.map(d => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d]).join(', ')} for {repeatWeeks} week{repeatWeeks > 1 ? 's' : ''}
-                                                        <br/>
-                                                        (approximately {selectedDays.length * repeatWeeks} sessions)
-                                                    </div>
-                                                )}
-                                            </>
-                                        )}
-                                        
-                                        <button onClick={addSession} style={{...styles.button, background: '#4F46E5', color: 'white'}}>
-                                            {useCalendar && bulkCount > 1 ? `Schedule ${bulkCount} Sessions` : 
-                                             !useCalendar && selectedDays.length > 0 ? `Schedule Sessions` : 
-                                             'Schedule Session'}
+                            {instructorView === 'classes' && (
+                                <div style={{ marginTop: '24px' }}>
+                                    <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                                        <input
+                                            value={newClassName}
+                                            onChange={(e) => setNewClassName(e.target.value)}
+                                            placeholder="New class name"
+                                            style={{ ...styles.input, width: 'auto', flex: 1 }}
+                                        />
+                                        <button onClick={addClass}
+                                                style={{ ...styles.button, background: '#4F46E5', color: 'white' }}>
+                                            Add Class
                                         </button>
+                                    </div>
+                                    <div style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+                                        gap: '16px',
+                                        textAlign: 'left'
+                                    }}>
+                                        {classes.map(c => (
+                                            <div key={c.id}
+                                                 style={{
+                                                     border: '1px solid #E5E7EB',
+                                                     borderRadius: '8px',
+                                                     padding: '16px'
+                                                 }}>
+                                                <div style={{
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    alignItems: 'start'
+                                                }}>
+                                                    <h4 style={{ fontWeight: 'bold', margin: 0 }}>{c.name}</h4>
+                                                    <button onClick={() => deleteClass(c.id)}
+                                                            style={{
+                                                                background: 'none',
+                                                                border: 'none',
+                                                                color: '#EF4444',
+                                                                cursor: 'pointer',
+                                                                fontSize: '1.2rem'
+                                                            }}>🗑️
+                                                    </button>
+                                                </div>
+                                                <p style={{
+                                                    fontSize: '0.875rem',
+                                                    color: '#6B7280',
+                                                    margin: '8px 0'
+                                                }}>{getClassSessions(c.id).length} sessions</p>
+                                                <button onClick={() => exportToCSV(c.id)}
+                                                        style={{
+                                                            fontSize: '0.875rem',
+                                                            color: '#4F46E5',
+                                                            background: 'none',
+                                                            border: 'none',
+                                                            cursor: 'pointer',
+                                                            padding: 0
+                                                        }}>📥 Export
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
-                                        <h3 style={{fontWeight: 'bold', marginTop: '32px', marginBottom: '16px'}}>All Sessions</h3>
-                                        {sessions.length === 0 ? (
-                                            <p style={{color: '#6B7280', textAlign: 'center'}}>No sessions scheduled</p>
-                                        ) : (
-                                            <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
-                                                {sessions
-                                                    .sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date))
-                                                    .map(s => (
-                                                    <div key={s.id} style={{border: '1px solid #E5E7EB', borderRadius: '8px', padding: '16px'}}>
+                            {instructorView === 'sessions' && (
+                                <div style={{ marginTop: '24px', textAlign: 'left' }}>
+                                    <h3 style={{ fontWeight: 'bold', marginBottom: '16px' }}>Schedule New Session(s)</h3>
+                                    <select
+                                        value={selectedClass?.id || ''}
+                                        onChange={(e) => setSelectedClass(classes.find(c => c.id === parseInt(e.target.value)))}
+                                        style={{ ...styles.input, marginBottom: '12px' }}
+                                    >
+                                        <option value="">Choose class...</option>
+                                        {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    </select>
+
+                                    {/* Mode Toggle */}
+                                    <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                                        <button
+                                            onClick={() => setUseCalendar(true)}
+                                            style={{
+                                                ...styles.button,
+                                                background: useCalendar ? '#4F46E5' : '#E5E7EB',
+                                                color: useCalendar ? 'white' : '#374151',
+                                                flex: 1
+                                            }}
+                                        >
+                                            📅 Calendar Mode
+                                        </button>
+                                        <button
+                                            onClick={() => setUseCalendar(false)}
+                                            style={{
+                                                ...styles.button,
+                                                background: !useCalendar ? '#4F46E5' : '#E5E7EB',
+                                                color: !useCalendar ? 'white' : '#374151',
+                                                flex: 1
+                                            }}
+                                        >
+                                            📆 Day Selector
+                                        </button>
+                                    </div>
+
+                                    {useCalendar ? (
+                                        <>
+                                            <div style={{
+                                                display: 'grid',
+                                                gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                                                gap: '12px',
+                                                marginBottom: '12px'
+                                            }}>
+                                                <div>
+                                                    <label
+                                                        style={{
+                                                            display: 'block',
+                                                            fontSize: '0.875rem',
+                                                            fontWeight: '500',
+                                                            marginBottom: '4px'
+                                                        }}>Start Date</label>
+                                                    <input type="date" value={newSessionDate}
+                                                           onChange={(e) => setNewSessionDate(e.target.value)}
+                                                           style={styles.input}/>
+                                                </div>
+                                                <div>
+                                                    <label
+                                                        style={{
+                                                            display: 'block',
+                                                            fontSize: '0.875rem',
+                                                            fontWeight: '500',
+                                                            marginBottom: '4px'
+                                                        }}>Time</label>
+                                                    <input type="time" value={newSessionTime}
+                                                           onChange={(e) => setNewSessionTime(e.target.value)}
+                                                           style={styles.input}/>
+                                                </div>
+                                                <div>
+                                                    <label
+                                                        style={{
+                                                            display: 'block',
+                                                            fontSize: '0.875rem',
+                                                            fontWeight: '500',
+                                                            marginBottom: '4px'
+                                                        }}>Session Name</label>
+                                                    <input value={newSessionName}
+                                                           onChange={(e) => setNewSessionName(e.target.value)}
+                                                           placeholder="Lecture, Lab, etc."
+                                                           style={styles.input}/>
+                                                </div>
+                                            </div>
+                                            <div style={{
+                                                display: 'grid',
+                                                gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                                                gap: '12px',
+                                                marginBottom: '12px'
+                                            }}>
+                                                <div>
+                                                    <label
+                                                        style={{
+                                                            display: 'block',
+                                                            fontSize: '0.875rem',
+                                                            fontWeight: '500',
+                                                            marginBottom: '4px'
+                                                        }}>Number of Sessions</label>
+                                                    <input type="number" min="1" max="50" value={bulkCount}
+                                                           onChange={(e) => setBulkCount(parseInt(e.target.value) || 1)}
+                                                           style={styles.input}/>
+                                                </div>
+                                                <div>
+                                                    <label
+                                                        style={{
+                                                            display: 'block',
+                                                            fontSize: '0.875rem',
+                                                            fontWeight: '500',
+                                                            marginBottom: '4px'
+                                                        }}>Interval</label>
+                                                    <select value={bulkInterval}
+                                                            onChange={(e) => setBulkInterval(e.target.value)}
+                                                            style={styles.input}>
+                                                        <option value="daily">Daily</option>
+                                                        <option value="weekly">Weekly (skip weekends)</option>
+                                                        <option value="biweekly">Bi-weekly (skip weekends)</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            {bulkCount > 1 && (
+                                                <div style={{
+                                                    padding: '12px',
+                                                    background: '#DBEAFE',
+                                                    borderRadius: '8px',
+                                                    marginBottom: '12px',
+                                                    fontSize: '0.875rem',
+                                                    color: '#1E40AF'
+                                                }}>
+                                                    ℹ️ This will create {bulkCount} sessions starting from {newSessionDate} ({bulkInterval})
+                                                </div>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div style={{ marginBottom: '12px' }}>
+                                                <label
+                                                    style={{
+                                                        display: 'block',
+                                                        fontSize: '0.875rem',
+                                                        fontWeight: '500',
+                                                        marginBottom: '8px'
+                                                    }}>Select Days of Week</label>
+                                                <div style={{
+                                                    display: 'grid',
+                                                    gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))',
+                                                    gap: '8px'
+                                                }}>
+                                                    {[
+                                                        { day: 1, name: 'Mon', emoji: '📘' },
+                                                        { day: 2, name: 'Tue', emoji: '📗' },
+                                                        { day: 3, name: 'Wed', emoji: '📙' },
+                                                        { day: 4, name: 'Thu', emoji: '📕' },
+                                                        { day: 5, name: 'Fri', emoji: '📔' },
+                                                        { day: 6, name: 'Sat', emoji: '📓' },
+                                                        { day: 0, name: 'Sun', emoji: '📒' }
+                                                    ].map(({ day, name, emoji }) => (
+                                                        <button
+                                                            key={day}
+                                                            onClick={() => toggleDay(day)}
+                                                            style={{
+                                                                padding: '12px 8px',
+                                                                borderRadius: '8px',
+                                                                border: '2px solid',
+                                                                borderColor: selectedDays.includes(day) ? '#4F46E5' : '#E5E7EB',
+                                                                background: selectedDays.includes(day) ? '#EEF2FF' : 'white',
+                                                                cursor: 'pointer',
+                                                                fontSize: '0.875rem',
+                                                                fontWeight: selectedDays.includes(day) ? 'bold' : 'normal',
+                                                                color: selectedDays.includes(day) ? '#4F46E5' : '#6B7280'
+                                                            }}
+                                                        >
+                                                            <div style={{ fontSize: '1.5rem', marginBottom: '4px' }}>{emoji}</div>
+                                                            {name}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div style={{
+                                                display: 'grid',
+                                                gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                                                gap: '12px',
+                                                marginBottom: '12px'
+                                            }}>
+                                                <div>
+                                                    <label
+                                                        style={{
+                                                            display: 'block',
+                                                            fontSize: '0.875rem',
+                                                            fontWeight: '500',
+                                                            marginBottom: '4px'
+                                                        }}>Start Date</label>
+                                                    <input type="date" value={newSessionDate}
+                                                           onChange={(e) => setNewSessionDate(e.target.value)}
+                                                           style={styles.input}/>
+                                                </div>
+                                                <div>
+                                                    <label
+                                                        style={{
+                                                            display: 'block',
+                                                            fontSize: '0.875rem',
+                                                            fontWeight: '500',
+                                                            marginBottom: '4px'
+                                                        }}>Time</label>
+                                                    <input type="time" value={newSessionTime}
+                                                           onChange={(e) => setNewSessionTime(e.target.value)}
+                                                           style={styles.input}/>
+                                                </div>
+                                                <div>
+                                                    <label
+                                                        style={{
+                                                            display: 'block',
+                                                            fontSize: '0.875rem',
+                                                            fontWeight: '500',
+                                                            marginBottom: '4px'
+                                                        }}>Repeat for (weeks)</label>
+                                                    <input type="number" min="1" max="20" value={repeatWeeks}
+                                                           onChange={(e) => setRepeatWeeks(parseInt(e.target.value) || 1)}
+                                                           style={styles.input}/>
+                                                </div>
+                                                <div>
+                                                    <label
+                                                        style={{
+                                                            display: 'block',
+                                                            fontSize: '0.875rem',
+                                                            fontWeight: '500',
+                                                            marginBottom: '4px'
+                                                        }}>Session Name</label>
+                                                    <input value={newSessionName}
+                                                           onChange={(e) => setNewSessionName(e.target.value)}
+                                                           placeholder="Lecture, Lab, etc."
+                                                           style={styles.input}/>
+                                                </div>
+                                            </div>
+                                            {selectedDays.length > 0 && repeatWeeks > 0 && (
+                                                <div style={{
+                                                    padding: '12px',
+                                                    background: '#DBEAFE',
+                                                    borderRadius: '8px',
+                                                    marginBottom: '12px',
+                                                    fontSize: '0.875rem',
+                                                    color: '#1E40AF'
+                                                }}>
+                                                    ℹ️ This will create sessions on {selectedDays.map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ')} for {repeatWeeks} week{repeatWeeks > 1 ? 's' : ''}
+                                                    <br/>
+                                                    (approximately {selectedDays.length * repeatWeeks} sessions)
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+
+                                    <button onClick={addSession}
+                                            style={{ ...styles.button, background: '#4F46E5', color: 'white' }}>
+                                        {useCalendar && bulkCount > 1
+                                            ? `Schedule ${bulkCount} Sessions`
+                                            : !useCalendar && selectedDays.length > 0
+                                                ? 'Schedule Sessions'
+                                                : 'Schedule Session'}
+                                    </button>
+
+                                    <h3 style={{ fontWeight: 'bold', marginTop: '32px', marginBottom: '16px' }}>All Sessions</h3>
+                                    {sessions.length === 0 ? (
+                                        <p style={{ color: '#6B7280', textAlign: 'center' }}>No sessions scheduled</p>
+                                    ) : (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                            {sessions
+                                                .sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date))
+                                                .map(s => (
+                                                    <div key={s.id}
+                                                         style={{
+                                                             border: '1px solid #E5E7EB',
+                                                             borderRadius: '8px',
+                                                             padding: '16px'
+                                                         }}>
                                                         {editingSession === s.id ? (
                                                             <div>
-                                                                <h4 style={{fontWeight: 'bold', marginBottom: '12px'}}>{s.className}</h4>
-                                                                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '12px'}}>
+                                                                <h4 style={{
+                                                                    fontWeight: 'bold',
+                                                                    marginBottom: '12px'
+                                                                }}>{s.className}</h4>
+                                                                <div style={{
+                                                                    display: 'grid',
+                                                                    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                                                                    gap: '12px',
+                                                                    marginBottom: '12px'
+                                                                }}>
                                                                     <div>
-                                                                        <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Date</label>
-                                                                        <input type="date" value={editSessionData.date} onChange={(e) => setEditSessionData({...editSessionData, date: e.target.value})} style={styles.input} />
+                                                                        <label
+                                                                            style={{
+                                                                                display: 'block',
+                                                                                fontSize: '0.875rem',
+                                                                                fontWeight: '500',
+                                                                                marginBottom: '4px'
+                                                                            }}>Date</label>
+                                                                        <input type="date" value={editSessionData.date}
+                                                                               onChange={(e) => setEditSessionData({
+                                                                                   ...editSessionData,
+                                                                                   date: e.target.value
+                                                                               })}
+                                                                               style={styles.input}/>
                                                                     </div>
                                                                     <div>
-                                                                        <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Time</label>
-                                                                        <input type="time" value={editSessionData.time} onChange={(e) => setEditSessionData({...editSessionData, time: e.target.value})} style={styles.input} />
+                                                                        <label
+                                                                            style={{
+                                                                                display: 'block',
+                                                                                fontSize: '0.875rem',
+                                                                                fontWeight: '500',
+                                                                                marginBottom: '4px'
+                                                                            }}>Time</label>
+                                                                        <input type="time" value={editSessionData.time}
+                                                                               onChange={(e) => setEditSessionData({
+                                                                                   ...editSessionData,
+                                                                                   time: e.target.value
+                                                                               })}
+                                                                               style={styles.input}/>
                                                                     </div>
                                                                     <div>
-                                                                        <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Name</label>
-                                                                        <input value={editSessionData.name} onChange={(e) => setEditSessionData({...editSessionData, name: e.target.value})} style={styles.input} />
+                                                                        <label
+                                                                            style={{
+                                                                                display: 'block',
+                                                                                fontSize: '0.875rem',
+                                                                                fontWeight: '500',
+                                                                                marginBottom: '4px'
+                                                                            }}>Name</label>
+                                                                        <input value={editSessionData.name}
+                                                                               onChange={(e) => setEditSessionData({
+                                                                                   ...editSessionData,
+                                                                                   name: e.target.value
+                                                                               })}
+                                                                               style={styles.input}/>
                                                                     </div>
                                                                 </div>
-                                                                <div style={{display: 'flex', gap: '8px'}}>
-                                                                    <button onClick={saveEditSession} style={{...styles.button, background: '#10B981', color: 'white', padding: '6px 16px'}}>💾 Save</button>
-                                                                    <button onClick={cancelEdit} style={{...styles.button, background: '#6B7280', color: 'white', padding: '6px 16px'}}>Cancel</button>
+                                                                <div style={{ display: 'flex', gap: '8px' }}>
+                                                                    <button onClick={saveEditSession}
+                                                                            style={{
+                                                                                ...styles.button,
+                                                                                background: '#10B981',
+                                                                                color: 'white',
+                                                                                padding: '6px 16px'
+                                                                            }}>💾 Save
+                                                                    </button>
+                                                                    <button onClick={cancelEdit}
+                                                                            style={{
+                                                                                ...styles.button,
+                                                                                background: '#6B7280',
+                                                                                color: 'white',
+                                                                                padding: '6px 16px'
+                                                                            }}>Cancel
+                                                                    </button>
                                                                 </div>
                                                             </div>
                                                         ) : (
-                                                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'start'}}>
+                                                            <div style={{
+                                                                display: 'flex',
+                                                                justifyContent: 'space-between',
+                                                                alignItems: 'start'
+                                                            }}>
                                                                 <div>
-                                                                    <h4 style={{fontWeight: 'bold', margin: 0}}>{s.className}</h4>
-                                                                    <p style={{fontSize: '0.875rem', color: '#6B7280', margin: '4px 0'}}>{s.name}</p>
-                                                                    <p style={{fontSize: '0.875rem', color: '#6B7280', margin: '4px 0'}}>
+                                                                    <h4 style={{ fontWeight: 'bold', margin: 0 }}>{s.className}</h4>
+                                                                    <p style={{
+                                                                        fontSize: '0.875rem',
+                                                                        color: '#6B7280',
+                                                                        margin: '4px 0'
+                                                                    }}>{s.name}</p>
+                                                                    <p style={{
+                                                                        fontSize: '0.875rem',
+                                                                        color: '#6B7280',
+                                                                        margin: '4px 0'
+                                                                    }}>
                                                                         {parseLocalDate(s.date).toLocaleDateString()} at {s.time}
                                                                     </p>
-                                                                    <span style={{display: 'inline-block', marginTop: '8px', padding: '4px 12px', borderRadius: '9999px', fontSize: '0.75rem', background: s.status === 'active' ? '#D1FAE5' : s.status === 'completed' ? '#E5E7EB' : s.status === 'cancelled' ? '#FEE2E2' : '#DBEAFE', color: s.status === 'active' ? '#065F46' : s.status === 'completed' ? '#374151' : s.status === 'cancelled' ? '#991B1B' : '#1E40AF'}}>{s.status}</span>
+                                                                    <span style={{
+                                                                        display: 'inline-block',
+                                                                        marginTop: '8px',
+                                                                        padding: '4px 12px',
+                                                                        borderRadius: '9999px',
+                                                                        fontSize: '0.75rem',
+                                                                        background: s.status === 'active'
+                                                                            ? '#D1FAE5'
+                                                                            : s.status === 'completed'
+                                                                                ? '#E5E7EB'
+                                                                                : s.status === 'cancelled'
+                                                                                    ? '#FEE2E2'
+                                                                                    : '#DBEAFE',
+                                                                        color: s.status === 'active'
+                                                                            ? '#065F46'
+                                                                            : s.status === 'completed'
+                                                                                ? '#374151'
+                                                                                : s.status === 'cancelled'
+                                                                                    ? '#991B1B'
+                                                                                    : '#1E40AF'
+                                                                    }}>{s.status}</span>
                                                                 </div>
-                                                                <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
-                                                                    {s.status === 'scheduled' && <button onClick={() => startSession(s)} style={{...styles.button, background: '#10B981', color: 'white', padding: '6px 16px', whiteSpace: 'nowrap'}}>▶️ Start</button>}
-                                                                    {s.status === 'scheduled' && <button onClick={() => startEditSession(s)} style={{...styles.button, background: '#3B82F6', color: 'white', padding: '6px 16px', whiteSpace: 'nowrap'}}>✏️ Edit</button>}
-                                                                    {s.status === 'scheduled' && <button onClick={() => copySession(s)} style={{...styles.button, background: '#8B5CF6', color: 'white', padding: '6px 16px', whiteSpace: 'nowrap'}}>📋 Copy</button>}
-                                                                    {s.status === 'scheduled' && <button onClick={() => cancelSession(s.id)} style={{...styles.button, background: '#F59E0B', color: 'white', padding: '6px 16px', whiteSpace: 'nowrap'}}>⚠️ Cancel</button>}
-                                                                    <button onClick={() => deleteSession(s.id)} style={{...styles.button, background: '#EF4444', color: 'white', padding: '6px 16px', whiteSpace: 'nowrap'}}>🗑️ Delete</button>
+                                                                <div style={{
+                                                                    display: 'flex',
+                                                                    flexDirection: 'column',
+                                                                    gap: '8px'
+                                                                }}>
+                                                                    {s.status === 'scheduled' && (
+                                                                        <button onClick={() => startSession(s)}
+                                                                                style={{
+                                                                                    ...styles.button,
+                                                                                    background: '#10B981',
+                                                                                    color: 'white',
+                                                                                    padding: '6px 16px',
+                                                                                    whiteSpace: 'nowrap'
+                                                                                }}>▶️ Start
+                                                                        </button>
+                                                                    )}
+                                                                    {s.status === 'scheduled' && (
+                                                                        <button onClick={() => startEditSession(s)}
+                                                                                style={{
+                                                                                    ...styles.button,
+                                                                                    background: '#3B82F6',
+                                                                                    color: 'white',
+                                                                                    padding: '6px 16px',
+                                                                                    whiteSpace: 'nowrap'
+                                                                                }}>✏️ Edit
+                                                                        </button>
+                                                                    )}
+                                                                    {s.status === 'scheduled' && (
+                                                                        <button onClick={() => copySession(s)}
+                                                                                style={{
+                                                                                    ...styles.button,
+                                                                                    background: '#8B5CF6',
+                                                                                    color: 'white',
+                                                                                    padding: '6px 16px',
+                                                                                    whiteSpace: 'nowrap'
+                                                                                }}>📋 Copy
+                                                                        </button>
+                                                                    )}
+                                                                    {s.status === 'scheduled' && (
+                                                                        <button onClick={() => cancelSession(s.id)}
+                                                                                style={{
+                                                                                    ...styles.button,
+                                                                                    background: '#F59E0B',
+                                                                                    color: 'white',
+                                                                                    padding: '6px 16px',
+                                                                                    whiteSpace: 'nowrap'
+                                                                                }}>⚠️ Cancel
+                                                                        </button>
+                                                                    )}
+                                                                    <button onClick={() => deleteSession(s.id)}
+                                                                            style={{
+                                                                                ...styles.button,
+                                                                                background: '#EF4444',
+                                                                                color: 'white',
+                                                                                padding: '6px 16px',
+                                                                                whiteSpace: 'nowrap'
+                                                                            }}>🗑️ Delete
+                                                                    </button>
                                                                 </div>
                                                             </div>
                                                         )}
                                                     </div>
                                                 ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
-                                {instructorView === 'dashboard' && currentSession && (
-                                    <div style={{marginTop: '24px'}}>
-                                        <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '24px'}}>
-                                            <div style={{textAlign: 'left'}}>
-                                                <h3 style={{fontWeight: 'bold', margin: 0}}>{currentSession.className}</h3>
-                                                <p style={{color: '#6B7280', margin: '4px 0'}}>{currentSession.name}</p>
-                                            </div>
-                                            <button onClick={endSession} style={{...styles.button, background: '#EF4444', color: 'white'}}>End Session</button>
+                            {instructorView === 'dashboard' && currentSession && (
+                                <div style={{ marginTop: '24px' }}>
+                                    <div style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        marginBottom: '24px'
+                                    }}>
+                                        <div style={{ textAlign: 'left' }}>
+                                            <h3 style={{ fontWeight: 'bold', margin: 0 }}>{currentSession.className}</h3>
+                                            <p style={{
+                                                color: '#6B7280',
+                                                margin: '4px 0'
+                                            }}>{currentSession.name}</p>
                                         </div>
-                                        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', marginBottom: '24px'}}>
-                                            <div style={{background: '#F9FAFB', padding: '24px', borderRadius: '8px'}}>
-                                                <div style={{fontSize: '2rem', marginBottom: '8px'}}>📱</div>
-                                                <h4 style={{fontWeight: 'bold', marginBottom: '16px'}}>QR Code</h4>
-                                                {qrDataUrl && <img src={qrDataUrl} alt="QR" style={{width: '100%', maxWidth: '200px', border: '4px solid white', boxShadow: '0 4px 6px rgba(0,0,0,0.1)'}} />}
-                                            </div>
-                                            <div style={{background: '#F9FAFB', padding: '24px', borderRadius: '8px', display: 'flex', flexDirection: 'column', justifyContent: 'center'}}>
-                                                <div style={{fontSize: '2rem', marginBottom: '8px'}}>#️⃣</div>
-                                                <h4 style={{fontWeight: 'bold', marginBottom: '16px'}}>Manual Code</h4>
-                                                <div style={{fontSize: '3rem', fontWeight: 'bold', color: '#4F46E5', marginBottom: '16px'}}>{currentCode}</div>
-                                                <p style={{fontSize: '0.875rem', color: '#6B7280'}}>⏱️ Refreshes in: {formatTime(timeRemaining)}</p>
-                                            </div>
-                                        </div>
-                                        <h4 style={{fontWeight: 'bold', marginBottom: '12px', textAlign: 'left'}}>Attendance ({getSessionAttendance(currentSession.id).length})</h4>
-                                        {getSessionAttendance(currentSession.id).length === 0 ? (
-                                            <p style={{color: '#6B7280'}}>No check-ins yet</p>
-                                        ) : (
-                                            <table style={{width: '100%', borderCollapse: 'collapse', textAlign: 'left'}}>
-                                                <thead>
-                                                    <tr style={{borderBottom: '2px solid #E5E7EB'}}>
-                                                        <th style={{padding: '12px'}}>Student</th>
-                                                        <th style={{padding: '12px'}}>Status</th>
-                                                        <th style={{padding: '12px'}}>Time</th>
-                                                        <th style={{padding: '12px'}}>Action</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {getSessionAttendance(currentSession.id).map(r => (
-                                                        <tr key={r.id} style={{borderBottom: '1px solid #E5E7EB'}}>
-                                                            <td style={{padding: '12px'}}>{r.name}</td>
-                                                            <td style={{padding: '12px'}}>
-                                                                <span style={{padding: '4px 12px', borderRadius: '9999px', fontSize: '0.875rem', background: r.status === 'Present' ? '#D1FAE5' : r.status === 'Tardy' ? '#FEF3C7' : r.status === 'Excused' ? '#DBEAFE' : '#FEE2E2', color: r.status === 'Present' ? '#065F46' : r.status === 'Tardy' ? '#92400E' : r.status === 'Excused' ? '#1E40AF' : '#991B1B'}}>{r.status}</span>
-                                                            </td>
-                                                            <td style={{padding: '12px', color: '#6B7280'}}>{r.time}</td>
-                                                            <td style={{padding: '12px'}}>
-                                                                {r.status !== 'Excused' && (
-                                                                    <button onClick={() => markExcused(r.id)} style={{background: 'none', border: 'none', color: '#4F46E5', cursor: 'pointer', fontSize: '0.875rem'}}>Mark Excused</button>
-                                                                )}
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        )}
-                                    </div>
-                                )}
-
-                                {instructorView === 'dashboard' && !currentSession && (
-                                    <div style={{marginTop: '24px'}}>
-                                        <div style={{fontSize: '4rem', marginBottom: '16px'}}>📅</div>
-                                        <h3 style={{fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '8px'}}>No Active Session</h3>
-                                        <p style={{color: '#6B7280', marginBottom: '24px'}}>Go to Sessions to start tracking attendance</p>
-                                        <button onClick={() => setInstructorView('sessions')} style={{...styles.button, background: '#4F46E5', color: 'white'}}>View Sessions</button>
-                                    </div>
-                                )}
-
-                                {instructorView === 'settings' && (
-                                    <div style={{marginTop: '24px', textAlign: 'left'}}>
-                                        <h3 style={{fontWeight: 'bold', marginBottom: '16px'}}>Time Settings</h3>
-                                        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px'}}>
-                                            <div>
-                                                <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '8px'}}>Present Window (min)</label>
-                                                <input type="number" value={settings.presentUntil} onChange={(e) => setSettings({...settings, presentUntil: parseInt(e.target.value) || 0})} style={styles.input} min="1" />
-                                            </div>
-                                            <div>
-                                                <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '8px'}}>Tardy Window (min)</label>
-                                                <input type="number" value={settings.tardyUntil} onChange={(e) => setSettings({...settings, tardyUntil: parseInt(e.target.value) || 0})} style={styles.input} min="1" />
-                                            </div>
-                                            <div>
-                                                <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '8px'}}>Code Refresh (min)</label>
-                                                <input type="number" value={settings.codeRefreshInterval} onChange={(e) => setSettings({...settings, codeRefreshInterval: parseInt(e.target.value) || 1})} style={styles.input} min="1" />
-                                            </div>
-                                        </div>
-                                        <button onClick={() => exportToCSV()} style={{...styles.button, background: '#10B981', color: 'white'}}>📥 Export All Data</button>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {view === 'student' && (
-                            <div style={{...styles.card, maxWidth: '500px', margin: '0 auto'}}>
-                                <h2 style={{fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '24px', textAlign: 'center'}}>
-                                    Student Check-In
-                                </h2>
-                                {!currentSession ? (
-                                    <div style={{textAlign: 'center', padding: '32px 0'}}>
-                                        <div style={{fontSize: '3rem', marginBottom: '16px'}}>👨‍🎓</div>
-                                        <p style={{color: '#6B7280'}}>No active session. Wait for instructor to start.</p>
-                                    </div>
-                                ) : (
-                                    <div style={{display: 'flex', flexDirection: 'column', gap: '16px'}}>
-                                        <div>
-                                            <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '8px'}}>Your Name</label>
-                                            <input
-                                                value={studentName}
-                                                onChange={(e) => setStudentName(e.target.value)}
-                                                placeholder="Enter your full name"
-                                                style={styles.input}
-                                            />
-                                        </div>
-                                        <div>
-                                            <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '8px'}}>Attendance Code</label>
-                                            <input
-                                                value={studentCode}
-                                                onChange={(e) => setStudentCode(e.target.value)}
-                                                placeholder="Enter 6-digit code"
-                                                maxLength={6}
-                                                style={{...styles.input, fontSize: '2rem', textAlign: 'center', letterSpacing: '0.25em', fontFamily: 'monospace'}}
-                                            />
-                                        </div>
-                                        <button
-                                            onClick={handleCheckIn}
-                                            style={{
-                                                ...styles.button,
-                                                width: '100%',
-                                                padding: '12px',
-                                                background: '#4F46E5',
-                                                color: 'white'
-                                            }}
-                                        >
-                                            Check In
+                                        <button onClick={endSession}
+                                                style={{ ...styles.button, background: '#EF4444', color: 'white' }}>
+                                            End Session
                                         </button>
-                                        {checkInMessage && (
+                                    </div>
+                                    <div style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                                        gap: '16px',
+                                        marginBottom: '24px'
+                                    }}>
+                                        <div style={{ background: '#F9FAFB', padding: '24px', borderRadius: '8px' }}>
+                                            <div style={{ fontSize: '2rem', marginBottom: '8px' }}>📱</div>
+                                            <h4 style={{ fontWeight: 'bold', marginBottom: '16px' }}>QR Code</h4>
+                                            {qrDataUrl && (
+                                                <img
+                                                    src={qrDataUrl}
+                                                    alt="QR"
+                                                    style={{
+                                                        width: '100%',
+                                                        maxWidth: '200px',
+                                                        border: '4px solid white',
+                                                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                                                    }}
+                                                />
+                                            )}
+                                        </div>
+                                        <div style={{
+                                            background: '#F9FAFB',
+                                            padding: '24px',
+                                            borderRadius: '8px',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            justifyContent: 'center'
+                                        }}>
+                                            <div style={{ fontSize: '2rem', marginBottom: '8px' }}>#️⃣</div>
+                                            <h4 style={{ fontWeight: 'bold', marginBottom: '16px' }}>Manual Code</h4>
                                             <div style={{
-                                                padding: '16px',
-                                                borderRadius: '8px',
-                                                textAlign: 'center',
-                                                fontWeight: '500',
-                                                background: checkInMessage.includes('✓') ? '#D1FAE5' : '#FEE2E2',
-                                                color: checkInMessage.includes('✓') ? '#065F46' : '#991B1B'
-                                            }}>
-                                                {checkInMessage}
-                                            </div>
-                                        )}
-                                        <div style={{padding: '16px', background: '#DBEAFE', borderRadius: '8px'}}>
-                                            <p style={{fontSize: '0.875rem', textAlign: 'center', color: '#1E40AF', margin: 0}}>
-                                                <strong>Status Windows:</strong><br />
-                                                Present: Within {settings.presentUntil} min<br />
-                                                Tardy: {settings.presentUntil + 1}-{settings.tardyUntil} min<br />
-                                                Absent: After {settings.tardyUntil} min
+                                                fontSize: '3rem',
+                                                fontWeight: 'bold',
+                                                color: '#4F46E5',
+                                                marginBottom: '16px'
+                                            }}>{currentCode}</div>
+                                            <p style={{ fontSize: '0.875rem', color: '#6B7280' }}>
+                                                ⏱️ Refreshes in: {formatTime(timeRemaining)}
                                             </p>
                                         </div>
                                     </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            );
-        }
+                                    <h4 style={{ fontWeight: 'bold', marginBottom: '12px', textAlign: 'left' }}>
+                                        Attendance ({getSessionAttendance(currentSession.id).length})
+                                    </h4>
+                                    {getSessionAttendance(currentSession.id).length === 0 ? (
+                                        <p style={{ color: '#6B7280' }}>No check-ins yet</p>
+                                    ) : (
+                                        <table style={{
+                                            width: '100%',
+                                            borderCollapse: 'collapse',
+                                            textAlign: 'left'
+                                        }}>
+                                            <thead>
+                                            <tr style={{ borderBottom: '2px solid '#E5E7EB' }}>
+                                                <th style={{ padding: '12px' }}>Student</th>
+                                                <th style={{ padding: '12px' }}>Status</th>
+                                                <th style={{ padding: '12px' }}>Time</th>
+                                                <th style={{ padding: '12px' }}>Action</th>
+                                            </tr>
+                                            </thead>
+                                            <tbody>
+                                            {getSessionAttendance(currentSession.id).map(r => (
+                                                <tr key={r.id}
+                                                    style={{ borderBottom: '1px solid #E5E7EB' }}>
+                                                    <td style={{ padding: '12px' }}>{r.name}</td>
+                                                    <td style={{ padding: '12px' }}>
+                                                        <span style={{
+                                                            padding: '4px 12px',
+                                                            borderRadius: '9999px',
+                                                            fontSize: '0.875rem',
+                                                            background: r.status === 'Present'
+                                                                ? '#D1FAE5'
+                                                                : r.status === 'Tardy'
+                                                                    ? '#FEF3C7'
+                                                                    : r.status === 'Excused'
+                                                                        ? '#DBEAFE'
+                                                                        : '#FEE2E2',
+                                                            color: r.status === 'Present'
+                                                                ? '#065F46'
+                                                                : r.status === 'Tardy'
+                                                                    ? '#92400E'
+                                                                    : r.status === 'Excused'
+                                                                        ? '#1E40AF'
+                                                                        : '#991B1B'
+                                                        }}>{r.status}</span>
+                                                    </td>
+                                                    <td style={{ padding: '12px', color: '#6B7280' }}>{r.time}</td>
+                                                    <td style={{ padding: '12px' }}>
+                                                        {r.status !== 'Excused' && (
+                                                            <button onClick={() => markExcused(r.id)}
+                                                                    style={{
+                                                                        background: 'none',
+                                                                        border: 'none',
+                                                                        color: '#4F46E5',
+                                                                        cursor: 'pointer',
+                                                                        fontSize: '0.875rem'
+                                                                    }}>Mark Excused
+                                                            </button>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            </tbody>
+                                        </table>
+                                    )}
+                                </div>
+                            )}
 
-        ReactDOM.render(<AttendanceTracker />, document.getElementById('root'));
-    </script>
+                            {instructorView === 'dashboard' && !currentSession && (
+                                <div style={{ marginTop: '24px' }}>
+                                    <div style={{ fontSize: '4rem', marginBottom: '16px' }}>📅</div>
+                                    <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '8px' }}>
+                                        No Active Session
+                                    </h3>
+                                    <p style={{ color: '#6B7280', marginBottom: '24px' }}>
+                                        Go to Sessions to start tracking attendance
+                                    </p>
+                                    <button onClick={() => setInstructorView('sessions')}
+                                            style={{ ...styles.button, background: '#4F46E5', color: 'white' }}>
+                                        View Sessions
+                                    </button>
+                                </div>
+                            )}
+
+                            {instructorView === 'settings' && (
+                                <div style={{ marginTop: '24px', textAlign: 'left' }}>
+                                    <h3 style={{ fontWeight: 'bold', marginBottom: '16px' }}>Time Settings</h3>
+                                    <div style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                                        gap: '16px',
+                                        marginBottom: '24px'
+                                    }}>
+                                        <div>
+                                            <label style={{
+                                                display: 'block',
+                                                fontSize: '0.875rem',
+                                                fontWeight: '500',
+                                                marginBottom: '8px'
+                                            }}>Present Window (min)</label>
+                                            <input type="number" value={settings.presentUntil}
+                                                   onChange={(e) => setSettings({
+                                                       ...settings,
+                                                       presentUntil: parseInt(e.target.value) || 0
+                                                   })} style={styles.input} min="1"/>
+                                        </div>
+                                        <div>
+                                            <label style={{
+                                                display: 'block',
+                                                fontSize: '0.875rem',
+                                                fontWeight: '500',
+                                                marginBottom: '8px'
+                                            }}>Tardy Window (min)</label>
+                                            <input type="number" value={settings.tardyUntil}
+                                                   onChange={(e) => setSettings({
+                                                       ...settings,
+                                                       tardyUntil: parseInt(e.target.value) || 0
+                                                   })} style={styles.input} min="1"/>
+                                        </div>
+                                        <div>
+                                            <label style={{
+                                                display: 'block',
+                                                fontSize: '0.875rem',
+                                                fontWeight: '500',
+                                                marginBottom: '8px'
+                                            }}>Code Refresh (min)</label>
+                                            <input type="number" value={settings.codeRefreshInterval}
+                                                   onChange={(e) => setSettings({
+                                                       ...settings,
+                                                       codeRefreshInterval: parseInt(e.target.value) || 1
+                                                   })} style={styles.input} min="1"/>
+                                        </div>
+                                    </div>
+
+                                    <h3 style={{ fontWeight: 'bold', marginBottom: '16px' }}>Session Automation</h3>
+                                    <div style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                                        gap: '16px',
+                                        marginBottom: '24px'
+                                    }}>
+                                        <div>
+                                            <label style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                fontSize: '0.875rem',
+                                                fontWeight: '500',
+                                                marginBottom: '4px'
+                                            }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={!!settings.autoStartSessions}
+                                                    onChange={(e) => setSettings({
+                                                        ...settings,
+                                                        autoStartSessions: e.target.checked
+                                                    })}
+                                                    style={{ marginRight: '8px' }}
+                                                />
+                                                Auto-start sessions at scheduled time
+                                            </label>
+                                            <p style={{ fontSize: '0.75rem', color: '#6B7280' }}>
+                                                Browser must be open for auto-start to run.
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <label style={{
+                                                display: 'block',
+                                                fontSize: '0.875rem',
+                                                fontWeight: '500',
+                                                marginBottom: '8px'
+                                            }}>Allow early check-in (minutes before start)</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={settings.earlyCheckinMinutes ?? 0}
+                                                onChange={(e) => setSettings({
+                                                    ...settings,
+                                                    earlyCheckinMinutes: parseInt(e.target.value) || 0
+                                                })}
+                                                style={styles.input}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <h3 style={{ fontWeight: 'bold', marginBottom: '16px' }}>Instructor Password</h3>
+                                    <div style={{ maxWidth: '400px' }}>
+                                        <label style={{
+                                            display: 'block',
+                                            fontSize: '0.875rem',
+                                            fontWeight: '500',
+                                            marginBottom: '8px'
+                                        }}>New Password</label>
+                                        <input
+                                            type="password"
+                                            value={newPasswordInput}
+                                            onChange={(e) => setNewPasswordInput(e.target.value)}
+                                            style={styles.input}
+                                        />
+                                        <button
+                                            onClick={updatePassword}
+                                            style={{
+                                                ...styles.button,
+                                                background: '#4F46E5',
+                                                color: 'white',
+                                                marginTop: '8px'
+                                            }}
+                                        >
+                                            Update Password
+                                        </button>
+                                        {passwordMessage && (
+                                            <p style={{
+                                                fontSize: '0.875rem',
+                                                color: '#16A34A',
+                                                marginTop: '8px'
+                                            }}>{passwordMessage}</p>
+                                        )}
+                                        <p style={{
+                                            fontSize: '0.75rem',
+                                            color: '#6B7280',
+                                            marginTop: '8px'
+                                        }}>
+                                            Initial default password was <code>instructor123</code>.
+                                        </p>
+                                    </div>
+
+                                    <button onClick={() => exportToCSV()}
+                                            style={{
+                                                ...styles.button,
+                                                background: '#10B981',
+                                                color: 'white',
+                                                marginTop: '24px'
+                                            }}>
+                                        📥 Export All Data
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {view === 'student' && (
+                        <div style={{ ...styles.card, maxWidth: '500px', margin: '0 auto' }}>
+                            <h2 style={{
+                                fontSize: '1.5rem',
+                                fontWeight: 'bold',
+                                marginBottom: '24px',
+                                textAlign: 'center'
+                            }}>
+                                Student Check-In
+                            </h2>
+                            {!currentSession ? (
+                                <div style={{ textAlign: 'center', padding: '32px 0' }}>
+                                    <div style={{ fontSize: '3rem', marginBottom: '16px' }}>👨‍🎓</div>
+                                    <p style={{ color: '#6B7280' }}>No active session. Wait for instructor to start.</p>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                    <div>
+                                        <label style={{
+                                            display: 'block',
+                                            fontSize: '0.875rem',
+                                            fontWeight: '500',
+                                            marginBottom: '8px'
+                                        }}>Your Name</label>
+                                        <input
+                                            value={studentName}
+                                            onChange={(e) => setStudentName(e.target.value)}
+                                            placeholder="Enter your full name"
+                                            style={styles.input}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{
+                                            display: 'block',
+                                            fontSize: '0.875rem',
+                                            fontWeight: '500',
+                                            marginBottom: '8px'
+                                        }}>Attendance Code</label>
+                                        <input
+                                            value={studentCode}
+                                            onChange={(e) => setStudentCode(e.target.value)}
+                                            placeholder="Enter 6-digit code"
+                                            maxLength={6}
+                                            style={{
+                                                ...styles.input,
+                                                fontSize: '2rem',
+                                                textAlign: 'center',
+                                                letterSpacing: '0.25em',
+                                                fontFamily: 'monospace'
+                                            }}
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={handleCheckIn}
+                                        style={{
+                                            ...styles.button,
+                                            width: '100%',
+                                            padding: '12px',
+                                            background: '#4F46E5',
+                                            color: 'white'
+                                        }}
+                                    >
+                                        Check In
+                                    </button>
+                                    {checkInMessage && (
+                                        <div style={{
+                                            padding: '16px',
+                                            borderRadius: '8px',
+                                            textAlign: 'center',
+                                            fontWeight: '500',
+                                            background: checkInMessage.includes('✓') ? '#D1FAE5' : '#FEE2E2',
+                                            color: checkInMessage.includes('✓') ? '#065F46' : '#991B1B'
+                                        }}>
+                                            {checkInMessage}
+                                        </div>
+                                    )}
+                                    <div style={{ padding: '16px', background: '#DBEAFE', borderRadius: '8px' }}>
+                                        <p style={{
+                                            fontSize: '0.875rem',
+                                            textAlign: 'center',
+                                            color: '#1E40AF',
+                                            margin: 0
+                                        }}>
+                                            <strong>Status Windows:</strong><br/>
+                                            Present: Within {settings.presentUntil} min<br/>
+                                            Tardy: {settings.presentUntil + 1}-{settings.tardyUntil} min<br/>
+                                            Absent: After {settings.tardyUntil} min
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    ReactDOM.render(<AttendanceTracker/>, document.getElementById('root'));
+</script>
 </body>
 </html>
