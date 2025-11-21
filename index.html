@@ -130,7 +130,7 @@
                 const newSessions = [];
                 
                 if (useCalendar) {
-                    // Calendar mode - use existing logic
+                    // Calendar mode
                     if (!newSessionDate) {
                         alert('Please enter date');
                         return;
@@ -474,7 +474,7 @@
                 }
             };
 
-            // NEW: helper to parse stored "YYYY-MM-DD" as a local date (no timezone shift)
+            // Helper to parse "YYYY-MM-DD" as a local date (prevents timezone shift)
             const parseLocalDate = (dateStr) => {
                 if (!dateStr) return new Date();
                 const [year, month, day] = dateStr.split('-').map(Number);
@@ -902,7 +902,7 @@
                                             <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '8px'}}>Your Name</label>
                                             <input
                                                 value={studentName}
-                                                onChange={(e) => setStudentName(e.target value)}
+                                                onChange={(e) => setStudentName(e.target.value)}
                                                 placeholder="Enter your full name"
                                                 style={styles.input}
                                             />
