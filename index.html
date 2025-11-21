@@ -417,9 +417,9 @@
                 const rows = recordsToExport.map(record => [
                     record.date, record.className, record.sessionName, record.name, record.status, record.time
                 ]);
-                let csvContent = headers.join(',') + '\\n';
+                let csvContent = headers.join(',') + '\n';
                 rows.forEach(row => {
-                    csvContent += row.map(cell => `"${cell}"`).join(',') + '\\n';
+                    csvContent += row.map(cell => `"${cell}"`).join(',') + '\n';
                 });
                 const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
                 const link = document.createElement('a');
@@ -472,6 +472,13 @@
                     borderRadius: '8px',
                     fontSize: '1rem'
                 }
+            };
+
+            // NEW: helper to parse stored "YYYY-MM-DD" as a local date (no timezone shift)
+            const parseLocalDate = (dateStr) => {
+                if (!dateStr) return new Date();
+                const [year, month, day] = dateStr.split('-').map(Number);
+                return new Date(year, month - 1, day);
             };
 
             return (
@@ -739,7 +746,9 @@
                                             <p style={{color: '#6B7280', textAlign: 'center'}}>No sessions scheduled</p>
                                         ) : (
                                             <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
-                                                {sessions.sort((a, b) => new Date(a.date) - new Date(b.date)).map(s => (
+                                                {sessions
+                                                    .sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date))
+                                                    .map(s => (
                                                     <div key={s.id} style={{border: '1px solid #E5E7EB', borderRadius: '8px', padding: '16px'}}>
                                                         {editingSession === s.id ? (
                                                             <div>
@@ -768,7 +777,9 @@
                                                                 <div>
                                                                     <h4 style={{fontWeight: 'bold', margin: 0}}>{s.className}</h4>
                                                                     <p style={{fontSize: '0.875rem', color: '#6B7280', margin: '4px 0'}}>{s.name}</p>
-                                                                    <p style={{fontSize: '0.875rem', color: '#6B7280', margin: '4px 0'}}>{new Date(s.date).toLocaleDateString()} at {s.time}</p>
+                                                                    <p style={{fontSize: '0.875rem', color: '#6B7280', margin: '4px 0'}}>
+                                                                        {parseLocalDate(s.date).toLocaleDateString()} at {s.time}
+                                                                    </p>
                                                                     <span style={{display: 'inline-block', marginTop: '8px', padding: '4px 12px', borderRadius: '9999px', fontSize: '0.75rem', background: s.status === 'active' ? '#D1FAE5' : s.status === 'completed' ? '#E5E7EB' : s.status === 'cancelled' ? '#FEE2E2' : '#DBEAFE', color: s.status === 'active' ? '#065F46' : s.status === 'completed' ? '#374151' : s.status === 'cancelled' ? '#991B1B' : '#1E40AF'}}>{s.status}</span>
                                                                 </div>
                                                                 <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
@@ -891,7 +902,7 @@
                                             <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '8px'}}>Your Name</label>
                                             <input
                                                 value={studentName}
-                                                onChange={(e) => setStudentName(e.target.value)}
+                                                onChange={(e) => setStudentName(e.target value)}
                                                 placeholder="Enter your full name"
                                                 style={styles.input}
                                             />
