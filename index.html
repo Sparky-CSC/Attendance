@@ -1,287 +1,424 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Users, QrCode, Hash, Download, Trash2, Plus, Calendar } from 'lucide-react';
+import { Clock, Users, Settings, QrCode, Hash, Download, Trash2, Plus, Calendar, X } from 'lucide-react';
 
 const AttendanceTracker = () => {
-  const loadData = (key, def) => {
-    try {
-      const s = localStorage.getItem(key);
-      return s ? JSON.parse(s) : def;
-    } catch { return def; }
-  };
-
   const [view, setView] = useState('student');
-  const [iView, setIView] = useState('dash');
-  const [auth, setAuth] = useState(false);
-  const [pass, setPass] = useState('');
-  const [err, setErr] = useState('');
-  const [cls, setCls] = useState(() => loadData('cls', []));
-  const [selCls, setSelCls] = useState(null);
-  const [sess, setSess] = useState(() => loadData('sess', []));
-  const [curSess, setCurSess] = useState(null);
-  const [code, setCode] = useState('');
-  const [qr, setQr] = useState('');
-  const [timer, setTimer] = useState(0);
-  const [cfg, setCfg] = useState(() => loadData('cfg', {p:5,t:15,r:2}));
-  const [att, setAtt] = useState(() => loadData('att', []));
-  const [stCode, setStCode] = useState('');
-  const [stName, setStName] = useState('');
-  const [msg, setMsg] = useState('');
-  const [newCls, setNewCls] = useState('');
-  const [dt, setDt] = useState('');
-  const [tm, setTm] = useState('');
-  const [nm, setNm] = useState('');
+  const [instructorView, setInstructorView] = useState('dashboard');
+  const [instructorAuthenticated, setInstructorAuthenticated] = useState(false);
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  
+  const [classes, setClasses] = useState([]);
+  const [selectedClass, setSelectedClass] = useState(null);
+  const [sessions, setSessions] = useState([]);
+  const [currentSession, setCurrentSession] = useState(null);
+  const [currentCode, setCurrentCode] = useState('');
+  const [qrDataUrl, setQrDataUrl] = useState('');
+  const [timeRemaining, setTimeRemaining] = useState(0);
+  
+  const [settings, setSettings] = useState({
+    presentUntil: 5,
+    tardyUntil: 15,
+    codeRefreshInterval: 2
+  });
+  
+  const [attendance, setAttendance] = useState([]);
+  const [studentCode, setStudentCode] = useState('');
+  const [studentName, setStudentName] = useState('');
+  const [checkInMessage, setCheckInMessage] = useState('');
+  
+  const [newClassName, setNewClassName] = useState('');
+  const [newSessionDate, setNewSessionDate] = useState('');
+  const [newSessionTime, setNewSessionTime] = useState('');
+  const [newSessionName, setNewSessionName] = useState('');
 
-  useEffect(() => { localStorage.setItem('cls', JSON.stringify(cls)); }, [cls]);
-  useEffect(() => { localStorage.setItem('sess', JSON.stringify(sess)); }, [sess]);
-  useEffect(() => { localStorage.setItem('cfg', JSON.stringify(cfg)); }, [cfg]);
-  useEffect(() => { localStorage.setItem('att', JSON.stringify(att)); }, [att]);
-
-  const login = () => {
-    if (pass === 'instructor123') { setAuth(true); setErr(''); }
-    else { setErr('Wrong password'); setTimeout(() => setErr(''), 3000); }
-  };
-
-  const addCls = () => {
-    if (!newCls.trim()) { alert('Enter class name'); return; }
-    setCls([...cls, {id:Date.now(), name:newCls, at:new Date().toISOString()}]);
-    setNewCls('');
-  };
-
-  const delCls = (id) => {
-    if (confirm('Delete class?')) {
-      setCls(cls.filter(c => c.id !== id));
-      setSess(sess.filter(s => s.cid !== id));
-      setAtt(att.filter(a => a.cid !== id));
+  const handleInstructorLogin = () => {
+    if (password === 'instructor123') {
+      setInstructorAuthenticated(true);
+      setLoginError('');
+    } else {
+      setLoginError('Incorrect password');
+      setTimeout(() => setLoginError(''), 3000);
     }
   };
 
-  const addSess = () => {
-    if (!selCls) { alert('Select class'); return; }
-    if (!dt || !tm) { alert('Enter date/time'); return; }
-    setSess([...sess, {
-      id:Date.now(), cid:selCls.id, cnm:selCls.name,
-      dt, tm, nm:nm||'Session', st:'sched', at:new Date().toISOString()
-    }]);
-    setDt(''); setTm(''); setNm('');
+  const generateCode = () => {
+    return Math.floor(100000 + Math.random() * 900000).toString();
   };
 
-  const canSess = (id) => {
-    if (confirm('Cancel?')) setSess(sess.map(s => s.id===id ? {...s,st:'cancel'} : s));
-  };
-
-  const delSess = (id) => {
-    if (confirm('Delete?')) {
-      setSess(sess.filter(s => s.id !== id));
-      setAtt(att.filter(a => a.sid !== id));
-    }
-  };
-
-  const genCode = () => Math.floor(100000 + Math.random() * 900000).toString();
-
-  const genQR = (c) => {
-    const sz = 200, can = document.createElement('canvas');
-    can.width = sz; can.height = sz;
-    const ctx = can.getContext('2d');
-    ctx.fillStyle = '#FFF'; ctx.fillRect(0,0,sz,sz);
-    ctx.fillStyle = '#000';
-    const g = 8, cs = sz/g;
-    let sd = parseInt(c);
-    for (let i=0; i<g; i++) {
-      for (let j=0; j<g; j++) {
-        sd = (sd*9301+49297)%233280;
-        if (sd/233280 > 0.5) ctx.fillRect(j*cs, i*cs, cs, cs);
+  const generateQRCode = (code) => {
+    const size = 200;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = '#000000';
+    const gridSize = 8;
+    const cellSize = size / gridSize;
+    
+    let seed = parseInt(code);
+    for (let i = 0; i < gridSize; i++) {
+      for (let j = 0; j < gridSize; j++) {
+        seed = (seed * 9301 + 49297) % 233280;
+        if (seed / 233280 > 0.5) {
+          ctx.fillRect(j * cellSize, i * cellSize, cellSize, cellSize);
+        }
       }
     }
-    ctx.fillStyle = '#FFF'; ctx.fillRect(sz/4,sz/4,sz/2,sz/2);
-    ctx.fillStyle = '#000'; ctx.font = 'bold 24px monospace';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(c, sz/2, sz/2);
-    return can.toDataURL();
+    
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(size/4, size/4, size/2, size/2);
+    ctx.fillStyle = '#000000';
+    ctx.font = 'bold 24px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(code, size/2, size/2);
+    
+    return canvas.toDataURL();
   };
 
-  const startSess = (s) => {
-    const c = genCode();
-    setCode(c); setQr(genQR(c)); setTimer(cfg.r*60);
-    const up = {...s, st:'active', start:Date.now(), code:c};
-    setSess(sess.map(x => x.id===s.id ? up : x));
-    setCurSess(up); setIView('dash');
+  const addClass = () => {
+    if (!newClassName.trim()) {
+      alert('Please enter a class name');
+      return;
+    }
+    const newClass = {
+      id: Date.now(),
+      name: newClassName,
+      createdAt: new Date().toISOString()
+    };
+    setClasses([...classes, newClass]);
+    setNewClassName('');
   };
 
-  const endSess = () => {
-    if (curSess) setSess(sess.map(s => s.id===curSess.id ? {...s,st:'done',end:Date.now()} : s));
-    setCurSess(null); setCode(''); setQr(''); setTimer(0);
+  const deleteClass = (classId) => {
+    if (window.confirm('Delete this class and all its sessions?')) {
+      setClasses(classes.filter(c => c.id !== classId));
+      setSessions(sessions.filter(s => s.classId !== classId));
+      setAttendance(attendance.filter(a => a.classId !== classId));
+    }
   };
 
-  const markExc = (id) => {
-    setAtt(att.map(a => a.id===id ? {...a,st:'Excused'} : a));
+  const addSession = () => {
+    if (!selectedClass) {
+      alert('Please select a class first');
+      return;
+    }
+    if (!newSessionDate || !newSessionTime) {
+      alert('Please enter date and time');
+      return;
+    }
+    const newSession = {
+      id: Date.now(),
+      classId: selectedClass.id,
+      className: selectedClass.name,
+      date: newSessionDate,
+      time: newSessionTime,
+      name: newSessionName || 'Session',
+      status: 'scheduled',
+      createdAt: new Date().toISOString()
+    };
+    setSessions([...sessions, newSession]);
+    setNewSessionDate('');
+    setNewSessionTime('');
+    setNewSessionName('');
+  };
+
+  const startSession = (session) => {
+    const code = generateCode();
+    setCurrentCode(code);
+    setQrDataUrl(generateQRCode(code));
+    setTimeRemaining(settings.codeRefreshInterval * 60);
+    
+    const updatedSession = {
+      ...session,
+      status: 'active',
+      startTime: Date.now(),
+      code: code
+    };
+    
+    setSessions(sessions.map(s => s.id === session.id ? updatedSession : s));
+    setCurrentSession(updatedSession);
+    setInstructorView('dashboard');
+  };
+
+  const endSession = () => {
+    if (currentSession) {
+      setSessions(sessions.map(s => 
+        s.id === currentSession.id ? {...s, status: 'completed', endTime: Date.now()} : s
+      ));
+    }
+    setCurrentSession(null);
+    setCurrentCode('');
+    setQrDataUrl('');
+    setTimeRemaining(0);
+  };
+
+  const cancelSession = (sessionId) => {
+    if (window.confirm('Cancel this session?')) {
+      setSessions(sessions.map(s => 
+        s.id === sessionId ? {...s, status: 'cancelled'} : s
+      ));
+    }
+  };
+
+  const deleteSession = (sessionId) => {
+    if (window.confirm('Delete this session and all attendance records?')) {
+      setSessions(sessions.filter(s => s.id !== sessionId));
+      setAttendance(attendance.filter(a => a.sessionId !== sessionId));
+    }
+  };
+
+  const markExcused = (attendanceId) => {
+    setAttendance(attendance.map(a => 
+      a.id === attendanceId ? {...a, status: 'Excused'} : a
+    ));
   };
 
   useEffect(() => {
-    if (!curSess) return;
-    const t = setInterval(() => {
-      setTimer(p => {
-        if (p <= 1) {
-          const nc = genCode();
-          setCode(nc); setQr(genQR(nc));
-          return cfg.r*60;
+    if (!currentSession) return;
+    const timer = setInterval(() => {
+      setTimeRemaining(prev => {
+        if (prev <= 1) {
+          const newCode = generateCode();
+          setCurrentCode(newCode);
+          setQrDataUrl(generateQRCode(newCode));
+          return settings.codeRefreshInterval * 60;
         }
-        return p-1;
+        return prev - 1;
       });
     }, 1000);
-    return () => clearInterval(t);
-  }, [curSess, cfg.r]);
+    return () => clearInterval(timer);
+  }, [currentSession, settings.codeRefreshInterval]);
 
-  const getSt = () => {
-    if (!curSess || !curSess.start) return 'Absent';
-    const m = (Date.now() - curSess.start)/1000/60;
-    if (m <= cfg.p) return 'Present';
-    if (m <= cfg.t) return 'Tardy';
+  const getAttendanceStatus = () => {
+    if (!currentSession || !currentSession.startTime) return 'Absent';
+    const minutesElapsed = (Date.now() - currentSession.startTime) / 1000 / 60;
+    if (minutesElapsed <= settings.presentUntil) return 'Present';
+    if (minutesElapsed <= settings.tardyUntil) return 'Tardy';
     return 'Absent';
   };
 
-  const checkIn = () => {
-    if (!curSess) { setMsg('No session'); return; }
-    if (!stName.trim()) { setMsg('Enter name'); return; }
-    if (stCode !== code) { setMsg('Invalid code'); return; }
-    if (att.find(a => a.sid===curSess.id && a.name.toLowerCase()===stName.toLowerCase())) {
-      setMsg('Already checked in'); return;
+  const handleCheckIn = () => {
+    if (!currentSession) {
+      setCheckInMessage('No active session');
+      return;
     }
-    const st = getSt();
-    setAtt([...att, {
-      id:Date.now(), sid:curSess.id, cid:curSess.cid, cnm:curSess.cnm,
-      snm:curSess.nm, name:stName, st, time:new Date().toLocaleTimeString(),
-      date:new Date().toLocaleDateString(), ts:Date.now()
-    }]);
-    setMsg(`✓ ${st}`); setStName(''); setStCode('');
-    setTimeout(() => setMsg(''), 3000);
+    if (!studentName.trim()) {
+      setCheckInMessage('Please enter your name');
+      return;
+    }
+    if (studentCode !== currentCode) {
+      setCheckInMessage('Invalid code. Please try again.');
+      return;
+    }
+    const alreadyCheckedIn = attendance.find(
+      a => a.sessionId === currentSession.id && a.name.toLowerCase() === studentName.toLowerCase()
+    );
+    if (alreadyCheckedIn) {
+      setCheckInMessage('You have already checked in!');
+      return;
+    }
+    const status = getAttendanceStatus();
+    const newAttendance = {
+      id: Date.now(),
+      sessionId: currentSession.id,
+      classId: currentSession.classId,
+      className: currentSession.className,
+      sessionName: currentSession.name,
+      name: studentName,
+      status: status,
+      time: new Date().toLocaleTimeString(),
+      date: new Date().toLocaleDateString(),
+      timestamp: Date.now()
+    };
+    setAttendance([...attendance, newAttendance]);
+    setCheckInMessage(`✓ Checked in as ${status}`);
+    setStudentName('');
+    setStudentCode('');
+    setTimeout(() => setCheckInMessage(''), 3000);
   };
 
-  const exp = (cid=null) => {
-    const r = cid ? att.filter(a => a.cid===cid) : att;
-    if (r.length === 0) { alert('No records'); return; }
-    const h = ['Date','Class','Session','Student','Status','Time'];
-    const rows = r.map(x => [x.date,x.cnm,x.snm,x.name,x.st,x.time]);
-    let csv = h.join(',')+'\n';
-    rows.forEach(row => { csv += row.map(c => `"${c}"`).join(',')+'\n'; });
-    const b = new Blob([csv], {type:'text/csv'});
-    const l = document.createElement('a');
-    l.href = URL.createObjectURL(b);
-    l.download = `att_${new Date().toISOString().split('T')[0]}.csv`;
-    l.click();
+  const exportToCSV = (classId = null) => {
+    const recordsToExport = classId ? attendance.filter(a => a.classId === classId) : attendance;
+    if (recordsToExport.length === 0) {
+      alert('No attendance records to export!');
+      return;
+    }
+    const headers = ['Date', 'Class', 'Session', 'Student Name', 'Status', 'Check-in Time'];
+    const rows = recordsToExport.map(record => [
+      record.date, record.className, record.sessionName, record.name, record.status, record.time
+    ]);
+    let csvContent = headers.join(',') + '\n';
+    rows.forEach(row => {
+      csvContent += row.map(cell => `"${cell}"`).join(',') + '\n';
+    });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `attendance_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
-  const fmt = (s) => {
-    const m = Math.floor(s/60), sc = s%60;
-    return `${m}:${sc.toString().padStart(2,'0')}`;
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const getSessAtt = (sid) => att.filter(a => a.sid===sid);
-  const getClsSess = (cid) => sess.filter(s => s.cid===cid);
+  const getSessionAttendance = (sessionId) => {
+    return attendance.filter(a => a.sessionId === sessionId);
+  };
+
+  const getClassSessions = (classId) => {
+    return sessions.filter(s => s.classId === classId);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="max-w-6xl mx-auto">
         <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-          <h1 className="text-3xl font-bold text-gray-800 mb-4">Attendance Tracker</h1>
+          <h1 className="text-3xl font-bold text-gray-800 mb-4">College Attendance Tracker</h1>
           <div className="flex gap-2">
-            <button onClick={() => setView('inst')} className={`px-6 py-2 rounded-lg font-medium ${view==='inst'?'bg-indigo-600 text-white':'bg-gray-200 text-gray-700'}`}>Instructor</button>
-            <button onClick={() => setView('student')} className={`px-6 py-2 rounded-lg font-medium ${view==='student'?'bg-indigo-600 text-white':'bg-gray-200 text-gray-700'}`}>Student</button>
+            <button onClick={() => setView('instructor')} className={`px-6 py-2 rounded-lg font-medium ${view === 'instructor' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700'}`}>Instructor</button>
+            <button onClick={() => setView('student')} className={`px-6 py-2 rounded-lg font-medium ${view === 'student' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700'}`}>Student</button>
           </div>
         </div>
 
-        {view==='inst' && !auth && (
+        {view === 'instructor' && !instructorAuthenticated && (
           <div className="bg-white rounded-lg shadow-lg p-8 max-w-md mx-auto">
-            <h2 className="text-2xl font-bold mb-6 text-center">Instructor Access</h2>
-            <input type="password" value={pass} onChange={e=>setPass(e.target.value)} onKeyPress={e=>e.key==='Enter'&&login()} placeholder="Password" className="w-full px-4 py-3 border rounded-lg mb-4" />
-            <button onClick={login} className="w-full py-3 bg-indigo-600 text-white rounded-lg">Login</button>
-            {err && <div className="mt-3 p-3 bg-red-100 text-red-800 rounded text-center text-sm">{err}</div>}
-            <p className="text-xs text-gray-500 text-center mt-3">Default: instructor123</p>
+            <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Instructor Access</h2>
+            <div className="space-y-4">
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleInstructorLogin()} placeholder="Enter instructor password" className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+              <button onClick={handleInstructorLogin} className="w-full py-3 bg-indigo-600 text-white rounded-lg font-medium">Login</button>
+              {loginError && <div className="p-3 bg-red-100 text-red-800 rounded-lg text-center text-sm">{loginError}</div>}
+              <p className="text-xs text-gray-500 text-center">Default password: instructor123</p>
+            </div>
           </div>
         )}
 
-        {view==='inst' && auth && (
+        {view === 'instructor' && instructorAuthenticated && (
           <>
             <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-              <div className="flex gap-2">
-                <button onClick={()=>setIView('dash')} className={`px-4 py-2 rounded-lg ${iView==='dash'?'bg-indigo-600 text-white':'bg-gray-200'}`}>Dashboard</button>
-                <button onClick={()=>setIView('cls')} className={`px-4 py-2 rounded-lg ${iView==='cls'?'bg-indigo-600 text-white':'bg-gray-200'}`}>Classes</button>
-                <button onClick={()=>setIView('sess')} className={`px-4 py-2 rounded-lg ${iView==='sess'?'bg-indigo-600 text-white':'bg-gray-200'}`}>Sessions</button>
-                <button onClick={()=>setIView('set')} className={`px-4 py-2 rounded-lg ${iView==='set'?'bg-indigo-600 text-white':'bg-gray-200'}`}>Settings</button>
+              <div className="flex gap-2 overflow-x-auto">
+                <button onClick={() => setInstructorView('dashboard')} className={`px-4 py-2 rounded-lg whitespace-nowrap ${instructorView === 'dashboard' ? 'bg-indigo-600 text-white' : 'bg-gray-200'}`}>Dashboard</button>
+                <button onClick={() => setInstructorView('classes')} className={`px-4 py-2 rounded-lg whitespace-nowrap ${instructorView === 'classes' ? 'bg-indigo-600 text-white' : 'bg-gray-200'}`}>Classes</button>
+                <button onClick={() => setInstructorView('sessions')} className={`px-4 py-2 rounded-lg whitespace-nowrap ${instructorView === 'sessions' ? 'bg-indigo-600 text-white' : 'bg-gray-200'}`}>Sessions</button>
+                <button onClick={() => setInstructorView('settings')} className={`px-4 py-2 rounded-lg whitespace-nowrap ${instructorView === 'settings' ? 'bg-indigo-600 text-white' : 'bg-gray-200'}`}>Settings</button>
               </div>
             </div>
 
-            {iView==='dash' && curSess && (
+            {instructorView === 'dashboard' && currentSession && (
               <div className="space-y-6">
                 <div className="bg-white rounded-lg shadow-lg p-6">
-                  <div className="flex justify-between mb-4">
-                    <div><h2 className="text-xl font-bold">{curSess.cnm}</h2><p className="text-gray-600">{curSess.nm}</p></div>
-                    <button onClick={endSess} className="px-6 py-2 bg-red-600 text-white rounded-lg">End</button>
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h2 className="text-xl font-bold">{currentSession.className}</h2>
+                      <p className="text-gray-600">{currentSession.name}</p>
+                    </div>
+                    <button onClick={endSession} className="px-6 py-2 bg-red-600 text-white rounded-lg">End Session</button>
                   </div>
                   <div className="grid md:grid-cols-2 gap-6">
                     <div className="text-center bg-gray-50 p-6 rounded-lg">
                       <QrCode className="w-6 h-6 mx-auto mb-2 text-indigo-600" />
                       <h3 className="font-semibold mb-4">QR Code</h3>
-                      {qr && <img src={qr} alt="QR" className="mx-auto border-4 border-white shadow-lg" />}
+                      {qrDataUrl && <img src={qrDataUrl} alt="QR" className="mx-auto border-4 border-white shadow-lg" />}
                     </div>
                     <div className="text-center bg-gray-50 p-6 rounded-lg flex flex-col justify-center">
                       <Hash className="w-6 h-6 mx-auto mb-2 text-indigo-600" />
-                      <h3 className="font-semibold mb-4">Code</h3>
-                      <div className="text-5xl font-bold text-indigo-600 mb-4">{code}</div>
+                      <h3 className="font-semibold mb-4">Manual Code</h3>
+                      <div className="text-5xl font-bold text-indigo-600 mb-4">{currentCode}</div>
                       <div className="flex items-center justify-center gap-2 text-gray-600">
                         <Clock className="w-4 h-4" />
-                        <span>Refreshes: {fmt(timer)}</span>
+                        <span>Refreshes in: {formatTime(timeRemaining)}</span>
                       </div>
                     </div>
                   </div>
                 </div>
                 <div className="bg-white rounded-lg shadow-lg p-6">
-                  <h3 className="text-lg font-bold mb-4">Attendance ({getSessAtt(curSess.id).length})</h3>
-                  {getSessAtt(curSess.id).length===0 ? <p className="text-gray-500 text-center py-4">No check-ins</p> : (
+                  <h3 className="text-lg font-bold mb-4">Attendance ({getSessionAttendance(currentSession.id).length})</h3>
+                  {getSessionAttendance(currentSession.id).length === 0 ? (
+                    <p className="text-gray-500 text-center py-4">No check-ins yet</p>
+                  ) : (
                     <table className="w-full">
-                      <thead><tr className="border-b"><th className="text-left py-3 px-4">Student</th><th className="text-left py-3 px-4">Status</th><th className="text-left py-3 px-4">Time</th><th className="text-left py-3 px-4">Action</th></tr></thead>
-                      <tbody>{getSessAtt(curSess.id).map(r => (
-                        <tr key={r.id} className="border-b hover:bg-gray-50">
-                          <td className="py-3 px-4">{r.name}</td>
-                          <td className="py-3 px-4"><span className={`px-3 py-1 rounded-full text-sm ${r.st==='Present'?'bg-green-100 text-green-800':r.st==='Tardy'?'bg-yellow-100 text-yellow-800':r.st==='Excused'?'bg-blue-100 text-blue-800':'bg-red-100 text-red-800'}`}>{r.st}</span></td>
-                          <td className="py-3 px-4 text-gray-600">{r.time}</td>
-                          <td className="py-3 px-4">{r.st!=='Excused' && <button onClick={()=>markExc(r.id)} className="text-blue-600 text-sm">Excuse</button>}</td>
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-3 px-4">Student</th>
+                          <th className="text-left py-3 px-4">Status</th>
+                          <th className="text-left py-3 px-4">Time</th>
+                          <th className="text-left py-3 px-4">Action</th>
                         </tr>
-                      ))}</tbody>
+                      </thead>
+                      <tbody>
+                        {getSessionAttendance(currentSession.id).map(r => (
+                          <tr key={r.id} className="border-b">
+                            <td className="py-3 px-4">{r.name}</td>
+                            <td className="py-3 px-4">
+                              <span className={`px-3 py-1 rounded-full text-sm ${
+                                r.status === 'Present' ? 'bg-green-100 text-green-800' :
+                                r.status === 'Tardy' ? 'bg-yellow-100 text-yellow-800' :
+                                r.status === 'Excused' ? 'bg-blue-100 text-blue-800' :
+                                'bg-red-100 text-red-800'
+                              }`}>{r.status}</span>
+                            </td>
+                            <td className="py-3 px-4">{r.time}</td>
+                            <td className="py-3 px-4">
+                              {r.status !== 'Excused' && (
+                                <button onClick={() => markExcused(r.id)} className="text-blue-600 text-sm">Mark Excused</button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
                     </table>
                   )}
                 </div>
               </div>
             )}
 
-            {iView==='dash' && !curSess && (
+            {instructorView === 'dashboard' && !currentSession && (
               <div className="bg-white rounded-lg shadow-lg p-8 text-center">
                 <Calendar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-xl font-bold mb-2">No Active Session</h3>
-                <button onClick={()=>setIView('sess')} className="px-6 py-3 bg-indigo-600 text-white rounded-lg mt-4">View Sessions</button>
+                <p className="text-gray-600 mb-6">Go to Sessions to start tracking</p>
+                <button onClick={() => setInstructorView('sessions')} className="px-6 py-3 bg-indigo-600 text-white rounded-lg">View Sessions</button>
               </div>
             )}
 
-            {iView==='cls' && (
+            {instructorView === 'classes' && (
               <div className="space-y-6">
                 <div className="bg-white rounded-lg shadow-lg p-6">
-                  <h2 className="text-xl font-bold mb-4">Add Class</h2>
+                  <h2 className="text-xl font-bold mb-4">Add New Class</h2>
                   <div className="flex gap-2">
-                    <input value={newCls} onChange={e=>setNewCls(e.target.value)} placeholder="Class name" className="flex-1 px-4 py-2 border rounded-lg" />
-                    <button onClick={addCls} className="px-6 py-2 bg-indigo-600 text-white rounded-lg flex items-center gap-2"><Plus className="w-4 h-4"/>Add</button>
+                    <input value={newClassName} onChange={(e) => setNewClassName(e.target.value)} placeholder="Class name" className="flex-1 px-4 py-2 border rounded-lg" />
+                    <button onClick={addClass} className="px-6 py-2 bg-indigo-600 text-white rounded-lg flex items-center gap-2">
+                      <Plus className="w-4 h-4" />Add
+                    </button>
                   </div>
                 </div>
                 <div className="bg-white rounded-lg shadow-lg p-6">
-                  <h2 className="text-xl font-bold mb-4">Classes</h2>
-                  {cls.length===0 ? <p className="text-gray-500 text-center py-4">No classes</p> : (
+                  <h2 className="text-xl font-bold mb-4">Your Classes</h2>
+                  {classes.length === 0 ? (
+                    <p className="text-gray-500 text-center py-4">No classes yet</p>
+                  ) : (
                     <div className="grid md:grid-cols-2 gap-4">
-                      {cls.map(c => (
+                      {classes.map(c => (
                         <div key={c.id} className="border rounded-lg p-4">
                           <div className="flex justify-between mb-2">
                             <h3 className="font-bold">{c.name}</h3>
-                            <button onClick={()=>delCls(c.id)} className="text-red-600"><Trash2 className="w-4 h-4"/></button>
+                            <button onClick={() => deleteClass(c.id)} className="text-red-600"><Trash2 className="w-4 h-4" /></button>
                           </div>
-                          <p className="text-sm text-gray-600 mb-2">{getClsSess(c.id).length} sessions</p>
-                          <button onClick={()=>exp(c.id)} className="text-sm text-indigo-600 flex items-center gap-1"><Download className="w-3 h-3"/>Export</button>
+                          <p className="text-sm text-gray-600 mb-2">{getClassSessions(c.id).length} sessions</p>
+                          <button onClick={() => exportToCSV(c.id)} className="text-sm text-indigo-600 flex items-center gap-1">
+                            <Download className="w-3 h-3" />Export
+                          </button>
                         </div>
                       ))}
                     </div>
@@ -290,40 +427,49 @@ const AttendanceTracker = () => {
               </div>
             )}
 
-            {iView==='sess' && (
+            {instructorView === 'sessions' && (
               <div className="space-y-6">
                 <div className="bg-white rounded-lg shadow-lg p-6">
                   <h2 className="text-xl font-bold mb-4">Schedule Session</h2>
                   <div className="space-y-4">
-                    <select value={selCls?.id||''} onChange={e=>setSelCls(cls.find(c=>c.id===parseInt(e.target.value)))} className="w-full px-4 py-2 border rounded-lg">
+                    <select value={selectedClass?.id || ''} onChange={(e) => setSelectedClass(classes.find(c => c.id === parseInt(e.target.value)))} className="w-full px-4 py-2 border rounded-lg">
                       <option value="">Choose class...</option>
-                      {cls.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                     <div className="grid md:grid-cols-3 gap-4">
-                      <input type="date" value={dt} onChange={e=>setDt(e.target.value)} className="px-4 py-2 border rounded-lg" />
-                      <input type="time" value={tm} onChange={e=>setTm(e.target.value)} className="px-4 py-2 border rounded-lg" />
-                      <input value={nm} onChange={e=>setNm(e.target.value)} placeholder="Name" className="px-4 py-2 border rounded-lg" />
+                      <input type="date" value={newSessionDate} onChange={(e) => setNewSessionDate(e.target.value)} className="px-4 py-2 border rounded-lg" />
+                      <input type="time" value={newSessionTime} onChange={(e) => setNewSessionTime(e.target.value)} className="px-4 py-2 border rounded-lg" />
+                      <input value={newSessionName} onChange={(e) => setNewSessionName(e.target.value)} placeholder="Session name" className="px-4 py-2 border rounded-lg" />
                     </div>
-                    <button onClick={addSess} className="px-6 py-2 bg-indigo-600 text-white rounded-lg flex items-center gap-2"><Plus className="w-4 h-4"/>Schedule</button>
+                    <button onClick={addSession} className="px-6 py-2 bg-indigo-600 text-white rounded-lg flex items-center gap-2">
+                      <Plus className="w-4 h-4" />Schedule
+                    </button>
                   </div>
                 </div>
                 <div className="bg-white rounded-lg shadow-lg p-6">
-                  <h2 className="text-xl font-bold mb-4">Sessions</h2>
-                  {sess.length===0 ? <p className="text-gray-500 text-center py-4">No sessions</p> : (
+                  <h2 className="text-xl font-bold mb-4">All Sessions</h2>
+                  {sessions.length === 0 ? (
+                    <p className="text-gray-500 text-center py-4">No sessions scheduled</p>
+                  ) : (
                     <div className="space-y-4">
-                      {sess.sort((a,b)=>new Date(b.dt)-new Date(a.dt)).map(s => (
+                      {sessions.map(s => (
                         <div key={s.id} className="border rounded-lg p-4">
                           <div className="flex justify-between">
                             <div>
-                              <h3 className="font-bold">{s.cnm}</h3>
-                              <p className="text-sm text-gray-600">{s.nm}</p>
-                              <p className="text-sm text-gray-500">{new Date(s.dt).toLocaleDateString()} at {s.tm}</p>
-                              <span className={`inline-block mt-2 px-3 py-1 rounded-full text-xs ${s.st==='active'?'bg-green-100 text-green-800':s.st==='done'?'bg-gray-100 text-gray-800':s.st==='cancel'?'bg-red-100 text-red-800':'bg-blue-100 text-blue-800'}`}>{s.st}</span>
+                              <h3 className="font-bold">{s.className}</h3>
+                              <p className="text-sm text-gray-600">{s.name}</p>
+                              <p className="text-sm text-gray-500">{new Date(s.date).toLocaleDateString()} at {s.time}</p>
+                              <span className={`inline-block mt-2 px-3 py-1 rounded-full text-xs ${
+                                s.status === 'active' ? 'bg-green-100 text-green-800' :
+                                s.status === 'completed' ? 'bg-gray-100 text-gray-800' :
+                                s.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                                'bg-blue-100 text-blue-800'
+                              }`}>{s.status}</span>
                             </div>
                             <div className="flex flex-col gap-2">
-                              {s.st==='sched' && <button onClick={()=>startSess(s)} className="px-4 py-2 bg-green-600 text-white rounded text-sm">Start</button>}
-                              {s.st==='sched' && <button onClick={()=>canSess(s.id)} className="px-4 py-2 bg-yellow-600 text-white rounded text-sm">Cancel</button>}
-                              <button onClick={()=>delSess(s.id)} className="px-4 py-2 bg-red-600 text-white rounded text-sm">Delete</button>
+                              {s.status === 'scheduled' && <button onClick={() => startSession(s)} className="px-4 py-2 bg-green-600 text-white rounded text-sm">Start</button>}
+                              {s.status === 'scheduled' && <button onClick={() => cancelSession(s.id)} className="px-4 py-2 bg-yellow-600 text-white rounded text-sm">Cancel</button>}
+                              <button onClick={() => deleteSession(s.id)} className="px-4 py-2 bg-red-600 text-white rounded text-sm">Delete</button>
                             </div>
                           </div>
                         </div>
@@ -334,30 +480,58 @@ const AttendanceTracker = () => {
               </div>
             )}
 
-            {iView==='set' && (
+            {instructorView === 'settings' && (
               <div className="bg-white rounded-lg shadow-lg p-6">
-                <h2 className="text-xl font-bold mb-4">Settings</h2>
+                <h2 className="text-xl font-bold mb-4">Time Settings</h2>
                 <div className="grid md:grid-cols-3 gap-4 mb-6">
-                  <div><label className="block text-sm font-medium mb-2">Present (min)</label><input type="number" value={cfg.p} onChange={e=>setCfg({...cfg,p:parseInt(e.target.value)||0})} className="w-full px-3 py-2 border rounded-lg" min="1"/></div>
-                  <div><label className="block text-sm font-medium mb-2">Tardy (min)</label><input type="number" value={cfg.t} onChange={e=>setCfg({...cfg,t:parseInt(e.target.value)||0})} className="w-full px-3 py-2 border rounded-lg" min="1"/></div>
-                  <div><label className="block text-sm font-medium mb-2">Refresh (min)</label><input type="number" value={cfg.r} onChange={e=>setCfg({...cfg,r:parseInt(e.target.value)||1})} className="w-full px-3 py-2 border rounded-lg" min="1"/></div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Present Window (min)</label>
+                    <input type="number" value={settings.presentUntil} onChange={(e) => setSettings({...settings, presentUntil: parseInt(e.target.value) || 0})} className="w-full px-3 py-2 border rounded-lg" min="1" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Tardy Window (min)</label>
+                    <input type="number" value={settings.tardyUntil} onChange={(e) => setSettings({...settings, tardyUntil: parseInt(e.target.value) || 0})} className="w-full px-3 py-2 border rounded-lg" min="1" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Code Refresh (min)</label>
+                    <input type="number" value={settings.codeRefreshInterval} onChange={(e) => setSettings({...settings, codeRefreshInterval: parseInt(e.target.value) || 1})} className="w-full px-3 py-2 border rounded-lg" min="1" />
+                  </div>
                 </div>
-                <button onClick={()=>exp()} className="px-6 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2"><Download className="w-4 h-4"/>Export All</button>
+                <button onClick={() => exportToCSV()} className="px-6 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2">
+                  <Download className="w-4 h-4" />Export All Data
+                </button>
               </div>
             )}
           </>
         )}
 
-        {view==='student' && (
+        {view === 'student' && (
           <div className="bg-white rounded-lg shadow-lg p-8 max-w-md mx-auto">
             <h2 className="text-2xl font-bold mb-6 text-center">Student Check-In</h2>
-            {!curSess ? <p className="text-gray-500 text-center py-8">No active session</p> : (
+            {!currentSession ? (
+              <p className="text-gray-500 text-center py-8">No active session. Wait for instructor to start.</p>
+            ) : (
               <div className="space-y-4">
-                <div><label className="block text-sm font-medium mb-2">Your Name</label><input value={stName} onChange={e=>setStName(e.target.value)} placeholder="Full name" className="w-full px-4 py-3 border rounded-lg"/></div>
-                <div><label className="block text-sm font-medium mb-2">Code</label><input value={stCode} onChange={e=>setStCode(e.target.value)} placeholder="6-digit code" maxLength={6} className="w-full px-4 py-3 border rounded-lg text-2xl text-center tracking-widest font-mono"/></div>
-                <button onClick={checkIn} className="w-full py-3 bg-indigo-600 text-white rounded-lg">Check In</button>
-                {msg && <div className={`p-4 rounded-lg text-center ${msg.includes('✓')?'bg-green-100 text-green-800':'bg-red-100 text-red-800'}`}>{msg}</div>}
-                <div className="p-4 bg-blue-50 rounded-lg"><p className="text-sm text-center"><strong>Windows:</strong><br/>Present: {cfg.p}min | Tardy: {cfg.t}min</p></div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Your Name</label>
+                  <input value={studentName} onChange={(e) => setStudentName(e.target.value)} placeholder="Full name" className="w-full px-4 py-3 border rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Attendance Code</label>
+                  <input value={studentCode} onChange={(e) => setStudentCode(e.target.value)} placeholder="6-digit code" maxLength={6} className="w-full px-4 py-3 border rounded-lg text-2xl text-center tracking-widest font-mono" />
+                </div>
+                <button onClick={handleCheckIn} className="w-full py-3 bg-indigo-600 text-white rounded-lg">Check In</button>
+                {checkInMessage && (
+                  <div className={`p-4 rounded-lg text-center ${checkInMessage.includes('✓') ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{checkInMessage}</div>
+                )}
+                <div className="p-4 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-center">
+                    <strong>Status Windows:</strong><br />
+                    Present: Within {settings.presentUntil} min<br />
+                    Tardy: {settings.presentUntil + 1}-{settings.tardyUntil} min<br />
+                    Absent: After {settings.tardyUntil} min
+                  </p>
+                </div>
               </div>
             )}
           </div>
