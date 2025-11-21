@@ -1,145 +1,679 @@
-import React, { useState, useEffect } from 'react';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>College Attendance Tracker</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: linear-gradient(to bottom right, #EFF6FF, #E0E7FF);
+            min-height: 100vh;
+        }
+        * { box-sizing: border-box; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
 
-const AttendanceTracker = () => {
-  const [view, setView] = useState('student');
-  const [authenticated, setAuthenticated] = useState(false);
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+    <script type="text/babel">
+        const { useState, useEffect } = React;
 
-  const login = () => {
-    if (password === 'instructor123') {
-      setAuthenticated(true);
-      setError('');
-    } else {
-      setError('Incorrect password');
-    }
-  };
+        function AttendanceTracker() {
+            const loadData = (key, defaultValue) => {
+                try {
+                    const saved = localStorage.getItem(key);
+                    return saved ? JSON.parse(saved) : defaultValue;
+                } catch {
+                    return defaultValue;
+                }
+            };
 
-  return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(to bottom right, #EFF6FF, #E0E7FF)', padding: '20px' }}>
-      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-        <div style={{ background: 'white', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', padding: '24px', marginBottom: '24px' }}>
-          <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#1F2937', marginBottom: '16px' }}>
-            College Attendance Tracker
-          </h1>
-          
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button 
-              onClick={() => setView('instructor')}
-              style={{
-                padding: '8px 24px',
-                borderRadius: '8px',
-                fontWeight: '500',
-                border: 'none',
-                cursor: 'pointer',
-                background: view === 'instructor' ? '#4F46E5' : '#E5E7EB',
-                color: view === 'instructor' ? 'white' : '#374151'
-              }}
-            >
-              Instructor
-            </button>
-            <button 
-              onClick={() => setView('student')}
-              style={{
-                padding: '8px 24px',
-                borderRadius: '8px',
-                fontWeight: '500',
-                border: 'none',
-                cursor: 'pointer',
-                background: view === 'student' ? '#4F46E5' : '#E5E7EB',
-                color: view === 'student' ? 'white' : '#374151'
-              }}
-            >
-              Student
-            </button>
-          </div>
-        </div>
+            const [view, setView] = useState('student');
+            const [instructorView, setInstructorView] = useState('dashboard');
+            const [authenticated, setAuthenticated] = useState(false);
+            const [password, setPassword] = useState('');
+            const [error, setError] = useState('');
+            
+            const [classes, setClasses] = useState(() => loadData('classes', []));
+            const [selectedClass, setSelectedClass] = useState(null);
+            const [sessions, setSessions] = useState(() => loadData('sessions', []));
+            const [currentSession, setCurrentSession] = useState(null);
+            const [currentCode, setCurrentCode] = useState('');
+            const [qrDataUrl, setQrDataUrl] = useState('');
+            const [timeRemaining, setTimeRemaining] = useState(0);
+            
+            const [settings, setSettings] = useState(() => loadData('settings', {
+                presentUntil: 5,
+                tardyUntil: 15,
+                codeRefreshInterval: 2
+            }));
+            
+            const [attendance, setAttendance] = useState(() => loadData('attendance', []));
+            const [studentCode, setStudentCode] = useState('');
+            const [studentName, setStudentName] = useState('');
+            const [checkInMessage, setCheckInMessage] = useState('');
+            
+            const [newClassName, setNewClassName] = useState('');
+            const [newSessionDate, setNewSessionDate] = useState('');
+            const [newSessionTime, setNewSessionTime] = useState('');
+            const [newSessionName, setNewSessionName] = useState('');
 
-        {view === 'instructor' && !authenticated && (
-          <div style={{ background: 'white', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', padding: '32px', maxWidth: '400px', margin: '0 auto' }}>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#1F2937', marginBottom: '24px', textAlign: 'center' }}>
-              Instructor Access
-            </h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#374151', marginBottom: '8px' }}>
-                  Password
-                </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && login()}
-                  placeholder="Enter instructor password"
-                  style={{
+            useEffect(() => {
+                localStorage.setItem('classes', JSON.stringify(classes));
+            }, [classes]);
+
+            useEffect(() => {
+                localStorage.setItem('sessions', JSON.stringify(sessions));
+            }, [sessions]);
+
+            useEffect(() => {
+                localStorage.setItem('settings', JSON.stringify(settings));
+            }, [settings]);
+
+            useEffect(() => {
+                localStorage.setItem('attendance', JSON.stringify(attendance));
+            }, [attendance]);
+
+            const login = () => {
+                if (password === 'instructor123') {
+                    setAuthenticated(true);
+                    setError('');
+                } else {
+                    setError('Incorrect password');
+                    setTimeout(() => setError(''), 3000);
+                }
+            };
+
+            const addClass = () => {
+                if (!newClassName.trim()) {
+                    alert('Please enter a class name');
+                    return;
+                }
+                setClasses([...classes, {
+                    id: Date.now(),
+                    name: newClassName,
+                    createdAt: new Date().toISOString()
+                }]);
+                setNewClassName('');
+            };
+
+            const deleteClass = (classId) => {
+                if (confirm('Delete this class and all its sessions?')) {
+                    setClasses(classes.filter(c => c.id !== classId));
+                    setSessions(sessions.filter(s => s.classId !== classId));
+                    setAttendance(attendance.filter(a => a.classId !== classId));
+                }
+            };
+
+            const addSession = () => {
+                if (!selectedClass) {
+                    alert('Please select a class first');
+                    return;
+                }
+                if (!newSessionDate || !newSessionTime) {
+                    alert('Please enter date and time');
+                    return;
+                }
+                setSessions([...sessions, {
+                    id: Date.now(),
+                    classId: selectedClass.id,
+                    className: selectedClass.name,
+                    date: newSessionDate,
+                    time: newSessionTime,
+                    name: newSessionName || 'Session',
+                    status: 'scheduled',
+                    createdAt: new Date().toISOString()
+                }]);
+                setNewSessionDate('');
+                setNewSessionTime('');
+                setNewSessionName('');
+            };
+
+            const generateCode = () => {
+                return Math.floor(100000 + Math.random() * 900000).toString();
+            };
+
+            const generateQRCode = (code) => {
+                const size = 200;
+                const canvas = document.createElement('canvas');
+                canvas.width = size;
+                canvas.height = size;
+                const ctx = canvas.getContext('2d');
+                
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, size, size);
+                ctx.fillStyle = '#000000';
+                const gridSize = 8;
+                const cellSize = size / gridSize;
+                
+                let seed = parseInt(code);
+                for (let i = 0; i < gridSize; i++) {
+                    for (let j = 0; j < gridSize; j++) {
+                        seed = (seed * 9301 + 49297) % 233280;
+                        if (seed / 233280 > 0.5) {
+                            ctx.fillRect(j * cellSize, i * cellSize, cellSize, cellSize);
+                        }
+                    }
+                }
+                
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(size/4, size/4, size/2, size/2);
+                ctx.fillStyle = '#000000';
+                ctx.font = 'bold 24px monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(code, size/2, size/2);
+                
+                return canvas.toDataURL();
+            };
+
+            const startSession = (session) => {
+                const code = generateCode();
+                setCurrentCode(code);
+                setQrDataUrl(generateQRCode(code));
+                setTimeRemaining(settings.codeRefreshInterval * 60);
+                
+                const updatedSession = {
+                    ...session,
+                    status: 'active',
+                    startTime: Date.now(),
+                    code: code
+                };
+                
+                setSessions(sessions.map(s => s.id === session.id ? updatedSession : s));
+                setCurrentSession(updatedSession);
+                setInstructorView('dashboard');
+            };
+
+            const endSession = () => {
+                if (currentSession) {
+                    setSessions(sessions.map(s => 
+                        s.id === currentSession.id ? {...s, status: 'completed', endTime: Date.now()} : s
+                    ));
+                }
+                setCurrentSession(null);
+                setCurrentCode('');
+                setQrDataUrl('');
+                setTimeRemaining(0);
+            };
+
+            const cancelSession = (sessionId) => {
+                if (confirm('Cancel this session?')) {
+                    setSessions(sessions.map(s => 
+                        s.id === sessionId ? {...s, status: 'cancelled'} : s
+                    ));
+                }
+            };
+
+            const deleteSession = (sessionId) => {
+                if (confirm('Delete this session and all attendance records?')) {
+                    setSessions(sessions.filter(s => s.id !== sessionId));
+                    setAttendance(attendance.filter(a => a.sessionId !== sessionId));
+                }
+            };
+
+            const markExcused = (attendanceId) => {
+                setAttendance(attendance.map(a => 
+                    a.id === attendanceId ? {...a, status: 'Excused'} : a
+                ));
+            };
+
+            useEffect(() => {
+                if (!currentSession) return;
+                const timer = setInterval(() => {
+                    setTimeRemaining(prev => {
+                        if (prev <= 1) {
+                            const newCode = generateCode();
+                            setCurrentCode(newCode);
+                            setQrDataUrl(generateQRCode(newCode));
+                            return settings.codeRefreshInterval * 60;
+                        }
+                        return prev - 1;
+                    });
+                }, 1000);
+                return () => clearInterval(timer);
+            }, [currentSession, settings.codeRefreshInterval]);
+
+            const getAttendanceStatus = () => {
+                if (!currentSession || !currentSession.startTime) return 'Absent';
+                const minutesElapsed = (Date.now() - currentSession.startTime) / 1000 / 60;
+                if (minutesElapsed <= settings.presentUntil) return 'Present';
+                if (minutesElapsed <= settings.tardyUntil) return 'Tardy';
+                return 'Absent';
+            };
+
+            const handleCheckIn = () => {
+                if (!currentSession) {
+                    setCheckInMessage('No active session');
+                    return;
+                }
+                if (!studentName.trim()) {
+                    setCheckInMessage('Please enter your name');
+                    return;
+                }
+                if (studentCode !== currentCode) {
+                    setCheckInMessage('Invalid code. Please try again.');
+                    return;
+                }
+                const alreadyCheckedIn = attendance.find(
+                    a => a.sessionId === currentSession.id && a.name.toLowerCase() === studentName.toLowerCase()
+                );
+                if (alreadyCheckedIn) {
+                    setCheckInMessage('You have already checked in!');
+                    return;
+                }
+                const status = getAttendanceStatus();
+                setAttendance([...attendance, {
+                    id: Date.now(),
+                    sessionId: currentSession.id,
+                    classId: currentSession.classId,
+                    className: currentSession.className,
+                    sessionName: currentSession.name,
+                    name: studentName,
+                    status: status,
+                    time: new Date().toLocaleTimeString(),
+                    date: new Date().toLocaleDateString(),
+                    timestamp: Date.now()
+                }]);
+                setCheckInMessage(`✓ Checked in as ${status}`);
+                setStudentName('');
+                setStudentCode('');
+                setTimeout(() => setCheckInMessage(''), 3000);
+            };
+
+            const exportToCSV = (classId = null) => {
+                const recordsToExport = classId ? attendance.filter(a => a.classId === classId) : attendance;
+                if (recordsToExport.length === 0) {
+                    alert('No attendance records to export!');
+                    return;
+                }
+                const headers = ['Date', 'Class', 'Session', 'Student Name', 'Status', 'Check-in Time'];
+                const rows = recordsToExport.map(record => [
+                    record.date, record.className, record.sessionName, record.name, record.status, record.time
+                ]);
+                let csvContent = headers.join(',') + '\\n';
+                rows.forEach(row => {
+                    csvContent += row.map(cell => `"${cell}"`).join(',') + '\\n';
+                });
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `attendance_${new Date().toISOString().split('T')[0]}.csv`;
+                link.click();
+            };
+
+            const formatTime = (seconds) => {
+                const mins = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+            };
+
+            const getSessionAttendance = (sessionId) => {
+                return attendance.filter(a => a.sessionId === sessionId);
+            };
+
+            const getClassSessions = (classId) => {
+                return sessions.filter(s => s.classId === classId);
+            };
+
+            const styles = {
+                container: {
+                    minHeight: '100vh',
+                    padding: '16px'
+                },
+                maxWidth: {
+                    maxWidth: '1200px',
+                    margin: '0 auto'
+                },
+                card: {
+                    background: 'white',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                    padding: '24px',
+                    marginBottom: '24px'
+                },
+                button: {
+                    padding: '8px 24px',
+                    borderRadius: '8px',
+                    fontWeight: '500',
+                    border: 'none',
+                    cursor: 'pointer'
+                },
+                input: {
                     width: '100%',
                     padding: '12px 16px',
                     border: '1px solid #D1D5DB',
                     borderRadius: '8px',
-                    fontSize: '1rem',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
-              <button
-                onClick={login}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  background: '#4F46E5',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontWeight: '500',
-                  fontSize: '1rem',
-                  cursor: 'pointer'
-                }}
-              >
-                Login
-              </button>
-              {error && (
-                <div style={{ padding: '12px', background: '#FEE2E2', color: '#991B1B', borderRadius: '8px', textAlign: 'center', fontSize: '0.875rem' }}>
-                  {error}
+                    fontSize: '1rem'
+                }
+            };
+
+            return (
+                <div style={styles.container}>
+                    <div style={styles.maxWidth}>
+                        <div style={styles.card}>
+                            <h1 style={{fontSize: '2rem', fontWeight: 'bold', color: '#1F2937', marginBottom: '16px'}}>
+                                College Attendance Tracker
+                            </h1>
+                            <div style={{display: 'flex', gap: '8px'}}>
+                                <button 
+                                    onClick={() => setView('instructor')}
+                                    style={{
+                                        ...styles.button,
+                                        background: view === 'instructor' ? '#4F46E5' : '#E5E7EB',
+                                        color: view === 'instructor' ? 'white' : '#374151'
+                                    }}
+                                >
+                                    Instructor
+                                </button>
+                                <button 
+                                    onClick={() => setView('student')}
+                                    style={{
+                                        ...styles.button,
+                                        background: view === 'student' ? '#4F46E5' : '#E5E7EB',
+                                        color: view === 'student' ? 'white' : '#374151'
+                                    }}
+                                >
+                                    Student
+                                </button>
+                            </div>
+                        </div>
+
+                        {view === 'instructor' && !authenticated && (
+                            <div style={{...styles.card, maxWidth: '400px', margin: '0 auto'}}>
+                                <h2 style={{fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '24px', textAlign: 'center'}}>
+                                    Instructor Access
+                                </h2>
+                                <div>
+                                    <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '8px'}}>
+                                        Password
+                                    </label>
+                                    <input
+                                        type="password"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && login()}
+                                        placeholder="Enter instructor password"
+                                        style={styles.input}
+                                    />
+                                </div>
+                                <button
+                                    onClick={login}
+                                    style={{
+                                        ...styles.button,
+                                        width: '100%',
+                                        padding: '12px',
+                                        background: '#4F46E5',
+                                        color: 'white',
+                                        marginTop: '16px'
+                                    }}
+                                >
+                                    Login
+                                </button>
+                                {error && (
+                                    <div style={{padding: '12px', background: '#FEE2E2', color: '#991B1B', borderRadius: '8px', textAlign: 'center', marginTop: '12px'}}>
+                                        {error}
+                                    </div>
+                                )}
+                                <p style={{fontSize: '0.75rem', color: '#6B7280', textAlign: 'center', marginTop: '12px'}}>
+                                    Default password: instructor123
+                                </p>
+                            </div>
+                        )}
+
+                        {view === 'instructor' && authenticated && (
+                            <div style={{...styles.card, textAlign: 'center'}}>
+                                <div style={{fontSize: '4rem', marginBottom: '16px'}}>📚</div>
+                                <h3 style={{fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '8px'}}>
+                                    Multi-Class Attendance System Ready!
+                                </h3>
+                                <p style={{color: '#6B7280', marginBottom: '16px'}}>
+                                    {classes.length} classes, {sessions.length} sessions, {attendance.length} attendance records
+                                </p>
+                                <div style={{display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap', marginTop: '24px'}}>
+                                    <button onClick={() => setInstructorView('dashboard')} style={{...styles.button, background: instructorView === 'dashboard' ? '#4F46E5' : '#E5E7EB', color: instructorView === 'dashboard' ? 'white' : '#374151'}}>Dashboard</button>
+                                    <button onClick={() => setInstructorView('classes')} style={{...styles.button, background: instructorView === 'classes' ? '#4F46E5' : '#E5E7EB', color: instructorView === 'classes' ? 'white' : '#374151'}}>Classes</button>
+                                    <button onClick={() => setInstructorView('sessions')} style={{...styles.button, background: instructorView === 'sessions' ? '#4F46E5' : '#E5E7EB', color: instructorView === 'sessions' ? 'white' : '#374151'}}>Sessions</button>
+                                    <button onClick={() => setInstructorView('settings')} style={{...styles.button, background: instructorView === 'settings' ? '#4F46E5' : '#E5E7EB', color: instructorView === 'settings' ? 'white' : '#374151'}}>Settings</button>
+                                </div>
+
+                                {instructorView === 'classes' && (
+                                    <div style={{marginTop: '24px'}}>
+                                        <div style={{display: 'flex', gap: '8px', marginBottom: '16px'}}>
+                                            <input
+                                                value={newClassName}
+                                                onChange={(e) => setNewClassName(e.target.value)}
+                                                placeholder="New class name"
+                                                style={{...styles.input, width: 'auto', flex: 1}}
+                                            />
+                                            <button onClick={addClass} style={{...styles.button, background: '#4F46E5', color: 'white'}}>Add Class</button>
+                                        </div>
+                                        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '16px', textAlign: 'left'}}>
+                                            {classes.map(c => (
+                                                <div key={c.id} style={{border: '1px solid #E5E7EB', borderRadius: '8px', padding: '16px'}}>
+                                                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'start'}}>
+                                                        <h4 style={{fontWeight: 'bold', margin: 0}}>{c.name}</h4>
+                                                        <button onClick={() => deleteClass(c.id)} style={{background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: '1.2rem'}}>🗑️</button>
+                                                    </div>
+                                                    <p style={{fontSize: '0.875rem', color: '#6B7280', margin: '8px 0'}}>{getClassSessions(c.id).length} sessions</p>
+                                                    <button onClick={() => exportToCSV(c.id)} style={{fontSize: '0.875rem', color: '#4F46E5', background: 'none', border: 'none', cursor: 'pointer', padding: 0}}>📥 Export</button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {instructorView === 'sessions' && (
+                                    <div style={{marginTop: '24px', textAlign: 'left'}}>
+                                        <h3 style={{fontWeight: 'bold', marginBottom: '16px'}}>Schedule New Session</h3>
+                                        <select
+                                            value={selectedClass?.id || ''}
+                                            onChange={(e) => setSelectedClass(classes.find(c => c.id === parseInt(e.target.value)))}
+                                            style={{...styles.input, marginBottom: '12px'}}
+                                        >
+                                            <option value="">Choose class...</option>
+                                            {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        </select>
+                                        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '12px'}}>
+                                            <input type="date" value={newSessionDate} onChange={(e) => setNewSessionDate(e.target.value)} style={styles.input} />
+                                            <input type="time" value={newSessionTime} onChange={(e) => setNewSessionTime(e.target.value)} style={styles.input} />
+                                            <input value={newSessionName} onChange={(e) => setNewSessionName(e.target.value)} placeholder="Session name" style={styles.input} />
+                                        </div>
+                                        <button onClick={addSession} style={{...styles.button, background: '#4F46E5', color: 'white'}}>Schedule Session</button>
+
+                                        <h3 style={{fontWeight: 'bold', marginTop: '32px', marginBottom: '16px'}}>All Sessions</h3>
+                                        {sessions.length === 0 ? (
+                                            <p style={{color: '#6B7280', textAlign: 'center'}}>No sessions scheduled</p>
+                                        ) : (
+                                            <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
+                                                {sessions.map(s => (
+                                                    <div key={s.id} style={{border: '1px solid #E5E7EB', borderRadius: '8px', padding: '16px'}}>
+                                                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'start'}}>
+                                                            <div>
+                                                                <h4 style={{fontWeight: 'bold', margin: 0}}>{s.className}</h4>
+                                                                <p style={{fontSize: '0.875rem', color: '#6B7280', margin: '4px 0'}}>{s.name}</p>
+                                                                <p style={{fontSize: '0.875rem', color: '#6B7280', margin: '4px 0'}}>{new Date(s.date).toLocaleDateString()} at {s.time}</p>
+                                                                <span style={{display: 'inline-block', marginTop: '8px', padding: '4px 12px', borderRadius: '9999px', fontSize: '0.75rem', background: s.status === 'active' ? '#D1FAE5' : s.status === 'completed' ? '#E5E7EB' : s.status === 'cancelled' ? '#FEE2E2' : '#DBEAFE', color: s.status === 'active' ? '#065F46' : s.status === 'completed' ? '#374151' : s.status === 'cancelled' ? '#991B1B' : '#1E40AF'}}>{s.status}</span>
+                                                            </div>
+                                                            <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+                                                                {s.status === 'scheduled' && <button onClick={() => startSession(s)} style={{...styles.button, background: '#10B981', color: 'white', padding: '6px 16px'}}>Start</button>}
+                                                                {s.status === 'scheduled' && <button onClick={() => cancelSession(s.id)} style={{...styles.button, background: '#F59E0B', color: 'white', padding: '6px 16px'}}>Cancel</button>}
+                                                                <button onClick={() => deleteSession(s.id)} style={{...styles.button, background: '#EF4444', color: 'white', padding: '6px 16px'}}>Delete</button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {instructorView === 'dashboard' && currentSession && (
+                                    <div style={{marginTop: '24px'}}>
+                                        <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '24px'}}>
+                                            <div style={{textAlign: 'left'}}>
+                                                <h3 style={{fontWeight: 'bold', margin: 0}}>{currentSession.className}</h3>
+                                                <p style={{color: '#6B7280', margin: '4px 0'}}>{currentSession.name}</p>
+                                            </div>
+                                            <button onClick={endSession} style={{...styles.button, background: '#EF4444', color: 'white'}}>End Session</button>
+                                        </div>
+                                        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', marginBottom: '24px'}}>
+                                            <div style={{background: '#F9FAFB', padding: '24px', borderRadius: '8px'}}>
+                                                <div style={{fontSize: '2rem', marginBottom: '8px'}}>📱</div>
+                                                <h4 style={{fontWeight: 'bold', marginBottom: '16px'}}>QR Code</h4>
+                                                {qrDataUrl && <img src={qrDataUrl} alt="QR" style={{width: '100%', maxWidth: '200px', border: '4px solid white', boxShadow: '0 4px 6px rgba(0,0,0,0.1)'}} />}
+                                            </div>
+                                            <div style={{background: '#F9FAFB', padding: '24px', borderRadius: '8px', display: 'flex', flexDirection: 'column', justifyContent: 'center'}}>
+                                                <div style={{fontSize: '2rem', marginBottom: '8px'}}>#️⃣</div>
+                                                <h4 style={{fontWeight: 'bold', marginBottom: '16px'}}>Manual Code</h4>
+                                                <div style={{fontSize: '3rem', fontWeight: 'bold', color: '#4F46E5', marginBottom: '16px'}}>{currentCode}</div>
+                                                <p style={{fontSize: '0.875rem', color: '#6B7280'}}>⏱️ Refreshes in: {formatTime(timeRemaining)}</p>
+                                            </div>
+                                        </div>
+                                        <h4 style={{fontWeight: 'bold', marginBottom: '12px', textAlign: 'left'}}>Attendance ({getSessionAttendance(currentSession.id).length})</h4>
+                                        {getSessionAttendance(currentSession.id).length === 0 ? (
+                                            <p style={{color: '#6B7280'}}>No check-ins yet</p>
+                                        ) : (
+                                            <table style={{width: '100%', borderCollapse: 'collapse', textAlign: 'left'}}>
+                                                <thead>
+                                                    <tr style={{borderBottom: '2px solid #E5E7EB'}}>
+                                                        <th style={{padding: '12px'}}>Student</th>
+                                                        <th style={{padding: '12px'}}>Status</th>
+                                                        <th style={{padding: '12px'}}>Time</th>
+                                                        <th style={{padding: '12px'}}>Action</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {getSessionAttendance(currentSession.id).map(r => (
+                                                        <tr key={r.id} style={{borderBottom: '1px solid #E5E7EB'}}>
+                                                            <td style={{padding: '12px'}}>{r.name}</td>
+                                                            <td style={{padding: '12px'}}>
+                                                                <span style={{padding: '4px 12px', borderRadius: '9999px', fontSize: '0.875rem', background: r.status === 'Present' ? '#D1FAE5' : r.status === 'Tardy' ? '#FEF3C7' : r.status === 'Excused' ? '#DBEAFE' : '#FEE2E2', color: r.status === 'Present' ? '#065F46' : r.status === 'Tardy' ? '#92400E' : r.status === 'Excused' ? '#1E40AF' : '#991B1B'}}>{r.status}</span>
+                                                            </td>
+                                                            <td style={{padding: '12px', color: '#6B7280'}}>{r.time}</td>
+                                                            <td style={{padding: '12px'}}>
+                                                                {r.status !== 'Excused' && (
+                                                                    <button onClick={() => markExcused(r.id)} style={{background: 'none', border: 'none', color: '#4F46E5', cursor: 'pointer', fontSize: '0.875rem'}}>Mark Excused</button>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        )}
+                                    </div>
+                                )}
+
+                                {instructorView === 'dashboard' && !currentSession && (
+                                    <div style={{marginTop: '24px'}}>
+                                        <div style={{fontSize: '4rem', marginBottom: '16px'}}>📅</div>
+                                        <h3 style={{fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '8px'}}>No Active Session</h3>
+                                        <p style={{color: '#6B7280', marginBottom: '24px'}}>Go to Sessions to start tracking attendance</p>
+                                        <button onClick={() => setInstructorView('sessions')} style={{...styles.button, background: '#4F46E5', color: 'white'}}>View Sessions</button>
+                                    </div>
+                                )}
+
+                                {instructorView === 'settings' && (
+                                    <div style={{marginTop: '24px', textAlign: 'left'}}>
+                                        <h3 style={{fontWeight: 'bold', marginBottom: '16px'}}>Time Settings</h3>
+                                        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px'}}>
+                                            <div>
+                                                <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '8px'}}>Present Window (min)</label>
+                                                <input type="number" value={settings.presentUntil} onChange={(e) => setSettings({...settings, presentUntil: parseInt(e.target.value) || 0})} style={styles.input} min="1" />
+                                            </div>
+                                            <div>
+                                                <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '8px'}}>Tardy Window (min)</label>
+                                                <input type="number" value={settings.tardyUntil} onChange={(e) => setSettings({...settings, tardyUntil: parseInt(e.target.value) || 0})} style={styles.input} min="1" />
+                                            </div>
+                                            <div>
+                                                <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '8px'}}>Code Refresh (min)</label>
+                                                <input type="number" value={settings.codeRefreshInterval} onChange={(e) => setSettings({...settings, codeRefreshInterval: parseInt(e.target.value) || 1})} style={styles.input} min="1" />
+                                            </div>
+                                        </div>
+                                        <button onClick={() => exportToCSV()} style={{...styles.button, background: '#10B981', color: 'white'}}>📥 Export All Data</button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {view === 'student' && (
+                            <div style={{...styles.card, maxWidth: '500px', margin: '0 auto'}}>
+                                <h2 style={{fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '24px', textAlign: 'center'}}>
+                                    Student Check-In
+                                </h2>
+                                {!currentSession ? (
+                                    <div style={{textAlign: 'center', padding: '32px 0'}}>
+                                        <div style={{fontSize: '3rem', marginBottom: '16px'}}>👨‍🎓</div>
+                                        <p style={{color: '#6B7280'}}>No active session. Wait for instructor to start.</p>
+                                    </div>
+                                ) : (
+                                    <div style={{display: 'flex', flexDirection: 'column', gap: '16px'}}>
+                                        <div>
+                                            <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '8px'}}>Your Name</label>
+                                            <input
+                                                value={studentName}
+                                                onChange={(e) => setStudentName(e.target.value)}
+                                                placeholder="Enter your full name"
+                                                style={styles.input}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '8px'}}>Attendance Code</label>
+                                            <input
+                                                value={studentCode}
+                                                onChange={(e) => setStudentCode(e.target.value)}
+                                                placeholder="Enter 6-digit code"
+                                                maxLength={6}
+                                                style={{...styles.input, fontSize: '2rem', textAlign: 'center', letterSpacing: '0.25em', fontFamily: 'monospace'}}
+                                            />
+                                        </div>
+                                        <button
+                                            onClick={handleCheckIn}
+                                            style={{
+                                                ...styles.button,
+                                                width: '100%',
+                                                padding: '12px',
+                                                background: '#4F46E5',
+                                                color: 'white'
+                                            }}
+                                        >
+                                            Check In
+                                        </button>
+                                        {checkInMessage && (
+                                            <div style={{
+                                                padding: '16px',
+                                                borderRadius: '8px',
+                                                textAlign: 'center',
+                                                fontWeight: '500',
+                                                background: checkInMessage.includes('✓') ? '#D1FAE5' : '#FEE2E2',
+                                                color: checkInMessage.includes('✓') ? '#065F46' : '#991B1B'
+                                            }}>
+                                                {checkInMessage}
+                                            </div>
+                                        )}
+                                        <div style={{padding: '16px', background: '#DBEAFE', borderRadius: '8px'}}>
+                                            <p style={{fontSize: '0.875rem', textAlign: 'center', color: '#1E40AF', margin: 0}}>
+                                                <strong>Status Windows:</strong><br />
+                                                Present: Within {settings.presentUntil} min<br />
+                                                Tardy: {settings.presentUntil + 1}-{settings.tardyUntil} min<br />
+                                                Absent: After {settings.tardyUntil} min
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
-              )}
-              <p style={{ fontSize: '0.75rem', color: '#6B7280', textAlign: 'center', margin: 0 }}>
-                Default password: instructor123
-              </p>
-            </div>
-          </div>
-        )}
+            );
+        }
 
-        {view === 'instructor' && authenticated && (
-          <div style={{ background: 'white', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', padding: '32px', textAlign: 'center' }}>
-            <div style={{ fontSize: '4rem', marginBottom: '16px' }}>📅</div>
-            <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#1F2937', marginBottom: '8px' }}>
-              Welcome, Instructor!
-            </h3>
-            <p style={{ color: '#6B7280', marginBottom: '24px' }}>
-              Your attendance tracking system is ready. Use the tabs above to manage classes, sessions, and settings.
-            </p>
-            <p style={{ color: '#4F46E5', fontWeight: '500' }}>
-              Full multi-class system loaded successfully!
-            </p>
-          </div>
-        )}
-
-        {view === 'student' && (
-          <div style={{ background: 'white', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', padding: '32px', maxWidth: '500px', margin: '0 auto' }}>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#1F2937', marginBottom: '24px', textAlign: 'center' }}>
-              Student Check-In
-            </h2>
-            <div style={{ textAlign: 'center', padding: '32px 0' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '16px' }}>👨‍🎓</div>
-              <p style={{ color: '#6B7280' }}>
-                No active attendance session. Please wait for your instructor to start a session.
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-export default AttendanceTracker;
+        ReactDOM.render(<AttendanceTracker />, document.getElementById('root'));
+    </script>
+</body>
+</html>
