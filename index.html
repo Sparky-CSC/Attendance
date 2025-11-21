@@ -123,19 +123,80 @@
                     alert('Please enter date and time');
                     return;
                 }
-                setSessions([...sessions, {
-                    id: Date.now(),
-                    classId: selectedClass.id,
-                    className: selectedClass.name,
-                    date: newSessionDate,
-                    time: newSessionTime,
-                    name: newSessionName || 'Session',
-                    status: 'scheduled',
-                    createdAt: new Date().toISOString()
-                }]);
+                
+                const newSessions = [];
+                const startDate = new Date(newSessionDate + 'T00:00:00');
+                
+                for (let i = 0; i < bulkCount; i++) {
+                    const sessionDate = new Date(startDate);
+                    
+                    if (bulkInterval === 'daily') {
+                        sessionDate.setDate(startDate.getDate() + i);
+                    } else if (bulkInterval === 'weekly') {
+                        sessionDate.setDate(startDate.getDate() + (i * 7));
+                    } else if (bulkInterval === 'biweekly') {
+                        sessionDate.setDate(startDate.getDate() + (i * 14));
+                    }
+                    
+                    if ((bulkInterval === 'weekly' || bulkInterval === 'biweekly') && (sessionDate.getDay() === 0 || sessionDate.getDay() === 6)) {
+                        continue;
+                    }
+                    
+                    const sessionName = bulkCount > 1 ? `${newSessionName || 'Session'} ${i + 1}` : (newSessionName || 'Session');
+                    
+                    newSessions.push({
+                        id: Date.now() + i,
+                        classId: selectedClass.id,
+                        className: selectedClass.name,
+                        date: sessionDate.toISOString().split('T')[0],
+                        time: newSessionTime,
+                        name: sessionName,
+                        status: 'scheduled',
+                        createdAt: new Date().toISOString()
+                    });
+                }
+                
+                setSessions([...sessions, ...newSessions]);
                 setNewSessionDate('');
                 setNewSessionTime('');
                 setNewSessionName('');
+                setBulkCount(1);
+            };
+
+            const copySession = (session) => {
+                const copiedSession = {
+                    ...session,
+                    id: Date.now(),
+                    name: `${session.name} (Copy)`,
+                    status: 'scheduled',
+                    createdAt: new Date().toISOString()
+                };
+                delete copiedSession.startTime;
+                delete copiedSession.endTime;
+                delete copiedSession.code;
+                setSessions([...sessions, copiedSession]);
+            };
+
+            const startEditSession = (session) => {
+                setEditingSession(session.id);
+                setEditSessionData({
+                    date: session.date,
+                    time: session.time,
+                    name: session.name
+                });
+            };
+
+            const saveEditSession = () => {
+                setSessions(sessions.map(s => 
+                    s.id === editingSession ? {...s, ...editSessionData} : s
+                ));
+                setEditingSession(null);
+                setEditSessionData({});
+            };
+
+            const cancelEdit = () => {
+                setEditingSession(null);
+                setEditSessionData({});
             };
 
             const generateCode = () => {
@@ -474,7 +535,7 @@
 
                                 {instructorView === 'sessions' && (
                                     <div style={{marginTop: '24px', textAlign: 'left'}}>
-                                        <h3 style={{fontWeight: 'bold', marginBottom: '16px'}}>Schedule New Session</h3>
+                                        <h3 style={{fontWeight: 'bold', marginBottom: '16px'}}>Schedule New Session(s)</h3>
                                         <select
                                             value={selectedClass?.id || ''}
                                             onChange={(e) => setSelectedClass(classes.find(c => c.id === parseInt(e.target.value)))}
@@ -484,32 +545,88 @@
                                             {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                         </select>
                                         <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '12px'}}>
-                                            <input type="date" value={newSessionDate} onChange={(e) => setNewSessionDate(e.target.value)} style={styles.input} />
-                                            <input type="time" value={newSessionTime} onChange={(e) => setNewSessionTime(e.target.value)} style={styles.input} />
-                                            <input value={newSessionName} onChange={(e) => setNewSessionName(e.target.value)} placeholder="Session name" style={styles.input} />
+                                            <div>
+                                                <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Start Date</label>
+                                                <input type="date" value={newSessionDate} onChange={(e) => setNewSessionDate(e.target.value)} style={styles.input} />
+                                            </div>
+                                            <div>
+                                                <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Time</label>
+                                                <input type="time" value={newSessionTime} onChange={(e) => setNewSessionTime(e.target.value)} style={styles.input} />
+                                            </div>
+                                            <div>
+                                                <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Session Name</label>
+                                                <input value={newSessionName} onChange={(e) => setNewSessionName(e.target.value)} placeholder="Lecture, Lab, etc." style={styles.input} />
+                                            </div>
                                         </div>
-                                        <button onClick={addSession} style={{...styles.button, background: '#4F46E5', color: 'white'}}>Schedule Session</button>
+                                        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '12px'}}>
+                                            <div>
+                                                <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Number of Sessions</label>
+                                                <input type="number" min="1" max="50" value={bulkCount} onChange={(e) => setBulkCount(parseInt(e.target.value) || 1)} style={styles.input} />
+                                            </div>
+                                            <div>
+                                                <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Interval</label>
+                                                <select value={bulkInterval} onChange={(e) => setBulkInterval(e.target.value)} style={styles.input}>
+                                                    <option value="daily">Daily</option>
+                                                    <option value="weekly">Weekly (skip weekends)</option>
+                                                    <option value="biweekly">Bi-weekly (skip weekends)</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        {bulkCount > 1 && (
+                                            <div style={{padding: '12px', background: '#DBEAFE', borderRadius: '8px', marginBottom: '12px', fontSize: '0.875rem', color: '#1E40AF'}}>
+                                                ℹ️ This will create {bulkCount} sessions starting from {newSessionDate} ({bulkInterval})
+                                            </div>
+                                        )}
+                                        <button onClick={addSession} style={{...styles.button, background: '#4F46E5', color: 'white'}}>
+                                            {bulkCount > 1 ? `Schedule ${bulkCount} Sessions` : 'Schedule Session'}
+                                        </button>
 
                                         <h3 style={{fontWeight: 'bold', marginTop: '32px', marginBottom: '16px'}}>All Sessions</h3>
                                         {sessions.length === 0 ? (
                                             <p style={{color: '#6B7280', textAlign: 'center'}}>No sessions scheduled</p>
                                         ) : (
                                             <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
-                                                {sessions.map(s => (
+                                                {sessions.sort((a, b) => new Date(a.date) - new Date(b.date)).map(s => (
                                                     <div key={s.id} style={{border: '1px solid #E5E7EB', borderRadius: '8px', padding: '16px'}}>
-                                                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'start'}}>
+                                                        {editingSession === s.id ? (
                                                             <div>
-                                                                <h4 style={{fontWeight: 'bold', margin: 0}}>{s.className}</h4>
-                                                                <p style={{fontSize: '0.875rem', color: '#6B7280', margin: '4px 0'}}>{s.name}</p>
-                                                                <p style={{fontSize: '0.875rem', color: '#6B7280', margin: '4px 0'}}>{new Date(s.date).toLocaleDateString()} at {s.time}</p>
-                                                                <span style={{display: 'inline-block', marginTop: '8px', padding: '4px 12px', borderRadius: '9999px', fontSize: '0.75rem', background: s.status === 'active' ? '#D1FAE5' : s.status === 'completed' ? '#E5E7EB' : s.status === 'cancelled' ? '#FEE2E2' : '#DBEAFE', color: s.status === 'active' ? '#065F46' : s.status === 'completed' ? '#374151' : s.status === 'cancelled' ? '#991B1B' : '#1E40AF'}}>{s.status}</span>
+                                                                <h4 style={{fontWeight: 'bold', marginBottom: '12px'}}>{s.className}</h4>
+                                                                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '12px'}}>
+                                                                    <div>
+                                                                        <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Date</label>
+                                                                        <input type="date" value={editSessionData.date} onChange={(e) => setEditSessionData({...editSessionData, date: e.target.value})} style={styles.input} />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Time</label>
+                                                                        <input type="time" value={editSessionData.time} onChange={(e) => setEditSessionData({...editSessionData, time: e.target.value})} style={styles.input} />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '4px'}}>Name</label>
+                                                                        <input value={editSessionData.name} onChange={(e) => setEditSessionData({...editSessionData, name: e.target.value})} style={styles.input} />
+                                                                    </div>
+                                                                </div>
+                                                                <div style={{display: 'flex', gap: '8px'}}>
+                                                                    <button onClick={saveEditSession} style={{...styles.button, background: '#10B981', color: 'white', padding: '6px 16px'}}>💾 Save</button>
+                                                                    <button onClick={cancelEdit} style={{...styles.button, background: '#6B7280', color: 'white', padding: '6px 16px'}}>Cancel</button>
+                                                                </div>
                                                             </div>
-                                                            <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
-                                                                {s.status === 'scheduled' && <button onClick={() => startSession(s)} style={{...styles.button, background: '#10B981', color: 'white', padding: '6px 16px'}}>Start</button>}
-                                                                {s.status === 'scheduled' && <button onClick={() => cancelSession(s.id)} style={{...styles.button, background: '#F59E0B', color: 'white', padding: '6px 16px'}}>Cancel</button>}
-                                                                <button onClick={() => deleteSession(s.id)} style={{...styles.button, background: '#EF4444', color: 'white', padding: '6px 16px'}}>Delete</button>
+                                                        ) : (
+                                                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'start'}}>
+                                                                <div>
+                                                                    <h4 style={{fontWeight: 'bold', margin: 0}}>{s.className}</h4>
+                                                                    <p style={{fontSize: '0.875rem', color: '#6B7280', margin: '4px 0'}}>{s.name}</p>
+                                                                    <p style={{fontSize: '0.875rem', color: '#6B7280', margin: '4px 0'}}>{new Date(s.date).toLocaleDateString()} at {s.time}</p>
+                                                                    <span style={{display: 'inline-block', marginTop: '8px', padding: '4px 12px', borderRadius: '9999px', fontSize: '0.75rem', background: s.status === 'active' ? '#D1FAE5' : s.status === 'completed' ? '#E5E7EB' : s.status === 'cancelled' ? '#FEE2E2' : '#DBEAFE', color: s.status === 'active' ? '#065F46' : s.status === 'completed' ? '#374151' : s.status === 'cancelled' ? '#991B1B' : '#1E40AF'}}>{s.status}</span>
+                                                                </div>
+                                                                <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+                                                                    {s.status === 'scheduled' && <button onClick={() => startSession(s)} style={{...styles.button, background: '#10B981', color: 'white', padding: '6px 16px', whiteSpace: 'nowrap'}}>▶️ Start</button>}
+                                                                    {s.status === 'scheduled' && <button onClick={() => startEditSession(s)} style={{...styles.button, background: '#3B82F6', color: 'white', padding: '6px 16px', whiteSpace: 'nowrap'}}>✏️ Edit</button>}
+                                                                    {s.status === 'scheduled' && <button onClick={() => copySession(s)} style={{...styles.button, background: '#8B5CF6', color: 'white', padding: '6px 16px', whiteSpace: 'nowrap'}}>📋 Copy</button>}
+                                                                    {s.status === 'scheduled' && <button onClick={() => cancelSession(s.id)} style={{...styles.button, background: '#F59E0B', color: 'white', padding: '6px 16px', whiteSpace: 'nowrap'}}>⚠️ Cancel</button>}
+                                                                    <button onClick={() => deleteSession(s.id)} style={{...styles.button, background: '#EF4444', color: 'white', padding: '6px 16px', whiteSpace: 'nowrap'}}>🗑️ Delete</button>
+                                                                </div>
                                                             </div>
-                                                        </div>
+                                                        )}
                                                     </div>
                                                 ))}
                                             </div>
