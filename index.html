@@ -62,6 +62,10 @@
             const [newSessionDate, setNewSessionDate] = useState('');
             const [newSessionTime, setNewSessionTime] = useState('');
             const [newSessionName, setNewSessionName] = useState('');
+            const [bulkCount, setBulkCount] = useState(1);
+            const [bulkInterval, setBulkInterval] = useState('daily');
+            const [editingSession, setEditingSession] = useState(null);
+            const [editSessionData, setEditSessionData] = useState({});
 
             useEffect(() => {
                 localStorage.setItem('classes', JSON.stringify(classes));
