@@ -55,6 +55,93 @@
             </svg>
         );
 
+        const Link = ({ size = 24, className = "" }) => (
+            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+            </svg>
+        );
+
+        const Copy = ({ size = 24, className = "" }) => (
+            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+        );
+
+        // Student Check-in Component
+        function StudentCheckIn() {
+          const [sessionId, setSessionId] = useState('');
+          const [studentId, setStudentId] = useState('');
+          const [submitted, setSubmitted] = useState(false);
+          const [error, setError] = useState('');
+
+          useEffect(() => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const sessionParam = urlParams.get('session');
+            if (sessionParam) {
+              setSessionId(sessionParam);
+            }
+          }, []);
+
+          const handleSubmit = () => {
+            if (!studentId) {
+              setError('Please enter your Student ID');
+              return;
+            }
+            // In a real app, this would submit to a backend
+            setSubmitted(true);
+            setTimeout(() => {
+              window.close();
+            }, 3000);
+          };
+
+          if (submitted) {
+            return (
+              <div className="min-h-screen bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center p-6">
+                <div className="bg-white p-8 rounded-2xl shadow-2xl text-center max-w-md">
+                  <CheckCircle size={80} className="text-green-500 mx-auto mb-4" />
+                  <h1 className="text-3xl font-bold text-gray-800 mb-2">Checked In!</h1>
+                  <p className="text-gray-600">Your attendance has been recorded.</p>
+                  <p className="text-gray-500 text-sm mt-4">This window will close automatically...</p>
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div className="min-h-screen bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center p-6">
+              <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
+                <div className="text-center mb-6">
+                  <UserCheck size={64} className="text-cyan-500 mx-auto mb-4" />
+                  <h1 className="text-3xl font-bold text-gray-800 mb-2">Check-In</h1>
+                  <p className="text-gray-600">Enter your Student ID to record attendance</p>
+                  {sessionId && (
+                    <p className="text-sm text-gray-500 mt-2">Session: {sessionId}</p>
+                  )}
+                </div>
+                <div className="space-y-4">
+                  <input
+                    type="text"
+                    placeholder="Student ID"
+                    value={studentId}
+                    onChange={(e) => setStudentId(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSubmit()}
+                    className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-cyan-500 focus:outline-none text-gray-800"
+                  />
+                  {error && <p className="text-red-500 text-sm">{error}</p>}
+                  <button
+                    onClick={handleSubmit}
+                    className="w-full bg-cyan-500 hover:bg-cyan-600 text-white py-3 rounded-lg font-bold transition-all"
+                  >
+                    Check In
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
         const BarChart3 = ({ size = 24, className = "" }) => (
             <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="20" x2="12" y2="10"/>
@@ -140,8 +227,23 @@
             </svg>
         );
 
+        const Lock = ({ size = 24, className = "" }) => (
+            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+        );
+
+        const Edit = ({ size = 24, className = "" }) => (
+            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+        );
+
         function ProAttendanceSystem() {
-          const [activeTab, setActiveTab] = useState('dashboard');
+          const [activeTab, setActiveTab] = useState('login');
+          const [isAuthenticated, setIsAuthenticated] = useState(false);
           const [currentTime, setCurrentTime] = useState(new Date());
           const [attendanceMode, setAttendanceMode] = useState('manual');
           const [showQRCode, setShowQRCode] = useState(false);
@@ -152,8 +254,15 @@
           const [showAddClass, setShowAddClass] = useState(false);
           const [showAddStudent, setShowAddStudent] = useState(false);
           const [showAddSession, setShowAddSession] = useState(false);
+          const [showEditClass, setShowEditClass] = useState(false);
+          const [editingClass, setEditingClass] = useState(null);
           const [selectedClass, setSelectedClass] = useState(null);
           const [selectedSession, setSelectedSession] = useState(null);
+          const [loginPassword, setLoginPassword] = useState('');
+          const [adminPassword, setAdminPassword] = useState('admin123');
+          const [showCalendar, setShowCalendar] = useState(false);
+          const [checkInUrl, setCheckInUrl] = useState('');
+          const [showCheckInUrl, setShowCheckInUrl] = useState(false);
           
           const [classes, setClasses] = useState([
             { id: 1, name: 'Computer Science 101', code: 'CS101', instructor: 'Dr. Smith', schedule: 'MWF 9:00-10:00' },
@@ -161,8 +270,8 @@
           ]);
 
           const [sessions, setSessions] = useState([
-            { id: 1, classId: 1, date: '2024-11-22', startTime: '09:00', endTime: '10:00', status: 'scheduled', location: 'Room 101' },
-            { id: 2, classId: 1, date: '2024-11-24', startTime: '09:00', endTime: '10:00', status: 'scheduled', location: 'Room 101' }
+            { id: 1, classId: 1, date: '2024-11-22', startTime: '09:00', endTime: '10:00', status: 'scheduled', location: 'Room 101', autoStart: false },
+            { id: 2, classId: 1, date: '2024-11-24', startTime: '09:00', endTime: '10:00', status: 'scheduled', location: 'Room 101', autoStart: false }
           ]);
 
           const [students, setStudents] = useState([
@@ -174,7 +283,7 @@
           const [attendance, setAttendance] = useState([]);
           const [newClass, setNewClass] = useState({ name: '', code: '', instructor: '', schedule: '' });
           const [newStudent, setNewStudent] = useState({ name: '', studentId: '', email: '' });
-          const [newSession, setNewSession] = useState({ date: '', startTime: '', endTime: '', location: '' });
+          const [newSession, setNewSession] = useState({ date: '', startTime: '', endTime: '', location: '', autoStart: false });
 
           useEffect(() => {
             const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -187,8 +296,97 @@
             }
           }, [classes]);
 
+          // Auto-start/stop sessions
+          useEffect(() => {
+            const checkSessions = () => {
+              const now = new Date();
+              const currentDate = now.toISOString().split('T')[0];
+              const currentTime = now.toTimeString().slice(0, 5);
+
+              sessions.forEach(session => {
+                if (session.autoStart && session.date === currentDate) {
+                  // Auto-start
+                  if (session.status === 'scheduled' && currentTime >= session.startTime && currentTime < session.endTime) {
+                    setSessions(prev => prev.map(s => 
+                      s.id === session.id ? { ...s, status: 'active' } : s
+                    ));
+                    addLog(`Auto-started session: ${session.date}`, 'session');
+                  }
+                  // Auto-stop
+                  if (session.status === 'active' && currentTime >= session.endTime) {
+                    setSessions(prev => prev.map(s => 
+                      s.id === session.id ? { ...s, status: 'completed' } : s
+                    ));
+                    addLog(`Auto-ended session: ${session.date}`, 'session');
+                  }
+                }
+              });
+            };
+
+            const interval = setInterval(checkSessions, 30000); // Check every 30 seconds
+            checkSessions(); // Check immediately
+            return () => clearInterval(interval);
+          }, [sessions]);
+
           const addLog = (event, type) => {
             setCheckInLog(prev => [...prev, { timestamp: new Date().toLocaleString(), event, type }]);
+          };
+
+          const handleLogin = () => {
+            if (loginPassword === adminPassword) {
+              setIsAuthenticated(true);
+              setActiveTab('dashboard');
+              addLog('Admin logged in', 'auth');
+            } else {
+              alert('Incorrect password');
+            }
+          };
+
+          const handleLogout = () => {
+            setIsAuthenticated(false);
+            setActiveTab('login');
+            addLog('Admin logged out', 'auth');
+          };
+
+          const handleEditClass = (cls) => {
+            setEditingClass({...cls});
+            setShowEditClass(true);
+          };
+
+          const handleUpdateClass = () => {
+            if (!editingClass.name || !editingClass.code) return alert('Please enter class name and code');
+            setClasses(classes.map(c => c.id === editingClass.id ? editingClass : c));
+            setShowEditClass(false);
+            addLog(`Updated class: ${editingClass.name}`, 'class');
+            setEditingClass(null);
+          };
+
+          const handleDeleteClass = (classId) => {
+            if (!confirm('Delete this class and all related data? This cannot be undone.')) return;
+            setClasses(classes.filter(c => c.id !== classId));
+            setStudents(students.filter(s => s.classId !== classId));
+            setSessions(sessions.filter(s => s.classId !== classId));
+            setAttendance(attendance.filter(a => {
+              const session = sessions.find(s => s.id === a.sessionId);
+              return session ? session.classId !== classId : true;
+            }));
+            if (selectedClass?.id === classId) setSelectedClass(null);
+            addLog('Deleted class and all related data', 'class');
+          };
+
+          const handleDeleteStudent = (studentId) => {
+            if (!confirm('Delete this student? This cannot be undone.')) return;
+            setStudents(students.filter(s => s.id !== studentId));
+            setAttendance(attendance.filter(a => a.studentId !== studentId));
+            addLog('Deleted student', 'student');
+          };
+
+          const handleDeleteSession = (sessionId) => {
+            if (!confirm('Delete this session? This cannot be undone.')) return;
+            setSessions(sessions.filter(s => s.id !== sessionId));
+            setAttendance(attendance.filter(a => a.sessionId !== sessionId));
+            if (selectedSession?.id === sessionId) setSelectedSession(null);
+            addLog('Deleted session', 'session');
           };
 
           const handleAddClass = () => {
@@ -255,7 +453,7 @@
               status: 'scheduled'
             };
             setSessions([...sessions, sessionObj]);
-            setNewSession({ date: '', startTime: '', endTime: '', location: '' });
+            setNewSession({ date: '', startTime: '', endTime: '', location: '', autoStart: false });
             setShowAddSession(false);
             addLog(`Added session for ${newSession.date}`, 'session');
           };
@@ -298,10 +496,18 @@
 
           const handleQRCheckIn = () => {
             if (!selectedSession) return alert('Please start a session first');
-            const qrData = `SESSION:${selectedSession.id}:${Date.now()}`;
+            const baseUrl = window.location.origin + window.location.pathname;
+            const checkInLink = `${baseUrl}?mode=checkin&session=${selectedSession.id}`;
+            const qrData = checkInLink;
             setQrCodeData(qrData);
+            setCheckInUrl(checkInLink);
             setShowQRCode(true);
             addLog('QR Code generated', 'qr');
+          };
+
+          const copyCheckInUrl = () => {
+            navigator.clipboard.writeText(checkInUrl);
+            alert('Check-in URL copied to clipboard!');
           };
 
           const simulateQRScan = () => {
@@ -314,6 +520,47 @@
 
           const classStudents = selectedClass ? students.filter(s => s.classId === selectedClass.id) : [];
           const classSessions = selectedClass ? sessions.filter(s => s.classId === selectedClass.id) : [];
+
+          // Check if we're in student check-in mode
+          const urlParams = new URLSearchParams(window.location.search);
+          const mode = urlParams.get('mode');
+          
+          if (mode === 'checkin') {
+            return <StudentCheckIn />;
+          }
+
+          if (!isAuthenticated) {
+            return (
+              <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-6">
+                <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border-2 border-cyan-500">
+                  <div className="text-center mb-8">
+                    <Lock size={64} className="text-cyan-400 mx-auto mb-4" />
+                    <h1 className="text-3xl font-bold text-white mb-2">Admin Login</h1>
+                    <p className="text-gray-400">Enter password to access the system</p>
+                  </div>
+                  <div className="space-y-4">
+                    <input
+                      type="password"
+                      placeholder="Enter admin password"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
+                      className="w-full bg-gray-700 text-white px-4 py-3 rounded-lg border border-gray-600 focus:border-cyan-500 focus:outline-none"
+                    />
+                    <button
+                      onClick={handleLogin}
+                      className="w-full bg-cyan-500 hover:bg-cyan-600 text-white py-3 rounded-lg font-bold transition-all"
+                    >
+                      Login
+                    </button>
+                    <div className="text-center mt-4">
+                      <p className="text-gray-500 text-sm">Default password: admin123</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          }
 
           return (
             <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-6">
@@ -331,6 +578,10 @@
                       <p className="text-white font-bold">{classes.length} Classes</p>
                       <p className="text-cyan-100 text-sm">{students.length} Students</p>
                     </div>
+                    <button onClick={handleLogout} className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg">
+                      <Lock size={18} />
+                      Logout
+                    </button>
                   </div>
 
                   <div className="flex gap-3 flex-wrap">
@@ -361,27 +612,74 @@
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div className="bg-gradient-to-br from-cyan-500 to-blue-600 p-6 rounded-xl">
+                        <div onClick={() => setActiveTab('classes')} className="bg-gradient-to-br from-cyan-500 to-blue-600 p-6 rounded-xl cursor-pointer hover:scale-105 transition-transform">
                           <Users size={32} className="text-white mb-2" />
                           <h3 className="text-white text-4xl font-bold">{classes.length}</h3>
                           <p className="text-cyan-100">Total Classes</p>
                         </div>
-                        <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-6 rounded-xl">
+                        <div onClick={() => setActiveTab('sessions')} className="bg-gradient-to-br from-green-500 to-emerald-600 p-6 rounded-xl cursor-pointer hover:scale-105 transition-transform">
                           <CheckCircle size={32} className="text-white mb-2" />
                           <h3 className="text-white text-4xl font-bold">{students.length}</h3>
                           <p className="text-green-100">Total Students</p>
                         </div>
-                        <div className="bg-gradient-to-br from-purple-500 to-pink-600 p-6 rounded-xl">
+                        <div onClick={() => setShowCalendar(true)} className="bg-gradient-to-br from-purple-500 to-pink-600 p-6 rounded-xl cursor-pointer hover:scale-105 transition-transform">
                           <Calendar size={32} className="text-white mb-2" />
                           <h3 className="text-white text-4xl font-bold">{sessions.length}</h3>
                           <p className="text-purple-100">Total Sessions</p>
                         </div>
-                        <div className="bg-gradient-to-br from-orange-500 to-red-600 p-6 rounded-xl">
+                        <div onClick={() => setActiveTab('checkin')} className="bg-gradient-to-br from-orange-500 to-red-600 p-6 rounded-xl cursor-pointer hover:scale-105 transition-transform">
                           <AlertCircle size={32} className="text-white mb-2" />
                           <h3 className="text-white text-4xl font-bold">{sessions.filter(s => s.status === 'active').length}</h3>
                           <p className="text-orange-100">Active Now</p>
                         </div>
                       </div>
+
+                      {showCalendar && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                          <div className="bg-gray-800 p-6 rounded-xl w-full max-w-4xl max-h-[80vh] overflow-y-auto">
+                            <div className="flex justify-between items-center mb-4">
+                              <h3 className="text-2xl font-bold text-white">Session Calendar</h3>
+                              <button onClick={() => setShowCalendar(false)} className="text-gray-400 hover:text-white">
+                                <X size={24} />
+                              </button>
+                            </div>
+                            <div className="space-y-4">
+                              {classes.map(cls => {
+                                const clsSessions = sessions.filter(s => s.classId === cls.id);
+                                if (clsSessions.length === 0) return null;
+                                return (
+                                  <div key={cls.id} className="bg-gray-700 p-4 rounded-lg">
+                                    <h4 className="text-xl font-bold text-white mb-3">{cls.name}</h4>
+                                    <div className="space-y-2">
+                                      {clsSessions.map(session => (
+                                        <div key={session.id} className="flex items-center justify-between bg-gray-600 p-3 rounded-lg">
+                                          <div>
+                                            <p className="text-white font-medium">{session.date}</p>
+                                            <p className="text-gray-300 text-sm">{session.startTime} - {session.endTime} • {session.location}</p>
+                                          </div>
+                                          <div className="flex items-center gap-3">
+                                            {session.autoStart && (
+                                              <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded">Auto</span>
+                                            )}
+                                            <span className={`px-3 py-1 rounded-full text-sm ${
+                                              session.status === 'active' ? 'bg-green-500/20 text-green-400' :
+                                              session.status === 'completed' ? 'bg-blue-500/20 text-blue-400' :
+                                              'bg-gray-500/20 text-gray-400'
+                                            }`}>{session.status}</span>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                              {sessions.length === 0 && (
+                                <p className="text-gray-400 text-center py-8">No sessions scheduled</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       <div className="bg-gray-800 p-6 rounded-xl">
                         <h3 className="text-xl font-bold text-white mb-4">Recent Activity</h3>
@@ -411,9 +709,19 @@
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {classes.map(cls => (
                           <div key={cls.id} className="bg-gray-800 p-6 rounded-xl border-2 border-gray-700 hover:border-cyan-500 transition-all">
-                            <div>
-                              <h3 className="text-xl font-bold text-white">{cls.name}</h3>
-                              <p className="text-gray-400">{cls.code}</p>
+                            <div className="flex justify-between items-start mb-4">
+                              <div>
+                                <h3 className="text-xl font-bold text-white">{cls.name}</h3>
+                                <p className="text-gray-400">{cls.code}</p>
+                              </div>
+                              <div className="flex gap-2">
+                                <button onClick={() => handleEditClass(cls)} className="text-cyan-400 hover:text-cyan-300">
+                                  <Edit size={20} />
+                                </button>
+                                <button onClick={() => handleDeleteClass(cls.id)} className="text-red-400 hover:text-red-300">
+                                  <Trash2 size={20} />
+                                </button>
+                              </div>
                             </div>
                             <div className="space-y-2 mt-4">
                               <p className="text-gray-300"><span className="text-gray-500">Instructor:</span> {cls.instructor}</p>
@@ -450,6 +758,34 @@
                                 onChange={(e) => setNewClass({...newClass, schedule: e.target.value})}
                                 className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600" />
                               <button onClick={handleAddClass} className="w-full bg-cyan-500 hover:bg-cyan-600 text-white py-2 rounded-lg">Add Class</button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {showEditClass && editingClass && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                          <div className="bg-gray-800 p-6 rounded-xl w-96">
+                            <div className="flex justify-between items-center mb-4">
+                              <h3 className="text-xl font-bold text-white">Edit Class</h3>
+                              <button onClick={() => setShowEditClass(false)} className="text-gray-400 hover:text-white">
+                                <X size={24} />
+                              </button>
+                            </div>
+                            <div className="space-y-3">
+                              <input type="text" placeholder="Class Name" value={editingClass.name}
+                                onChange={(e) => setEditingClass({...editingClass, name: e.target.value})}
+                                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600" />
+                              <input type="text" placeholder="Class Code" value={editingClass.code}
+                                onChange={(e) => setEditingClass({...editingClass, code: e.target.value})}
+                                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600" />
+                              <input type="text" placeholder="Instructor Name" value={editingClass.instructor}
+                                onChange={(e) => setEditingClass({...editingClass, instructor: e.target.value})}
+                                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600" />
+                              <input type="text" placeholder="Schedule" value={editingClass.schedule}
+                                onChange={(e) => setEditingClass({...editingClass, schedule: e.target.value})}
+                                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600" />
+                              <button onClick={handleUpdateClass} className="w-full bg-cyan-500 hover:bg-cyan-600 text-white py-2 rounded-lg">Update Class</button>
                             </div>
                           </div>
                         </div>
@@ -493,6 +829,9 @@
                                   <p className="text-gray-400 text-sm">{student.studentId}</p>
                                 </div>
                               </div>
+                              <button onClick={() => handleDeleteStudent(student.id)} className="text-red-400 hover:text-red-300">
+                                <Trash2 size={18} />
+                              </button>
                             </div>
                           ))}
                         </div>
@@ -521,6 +860,9 @@
                                   Take Attendance
                                 </button>
                               )}
+                              <button onClick={() => handleDeleteSession(session.id)} className="text-red-400 hover:text-red-300">
+                                <Trash2 size={20} />
+                              </button>
                             </div>
                           </div>
                         ))}
@@ -548,6 +890,16 @@
                               <input type="text" placeholder="Location" value={newSession.location}
                                 onChange={(e) => setNewSession({...newSession, location: e.target.value})}
                                 className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg" />
+                              <label className="flex items-center gap-3 text-white cursor-pointer">
+                                <input 
+                                  type="checkbox" 
+                                  checked={newSession.autoStart} 
+                                  onChange={(e) => setNewSession({...newSession, autoStart: e.target.checked})} 
+                                  className="w-5 h-5" 
+                                />
+                                <span>Enable automatic start/stop</span>
+                              </label>
+                              <p className="text-gray-400 text-xs">Session will automatically start and end at scheduled times</p>
                               <button onClick={handleAddSession} className="w-full bg-cyan-500 hover:bg-cyan-600 text-white py-2 rounded-lg">Add Session</button>
                             </div>
                           </div>
@@ -615,8 +967,33 @@
                                   </button>
                                 ) : (
                                   <div>
-                                    <img src={generateQRCode(qrCodeData)} alt="QR Code" className="w-64 h-64 mx-auto mb-4" />
-                                    <p className="text-gray-400 mb-4">Scan to check in</p>
+                                    <img src={generateQRCode(qrCodeData)} alt="QR Code" className="w-64 h-64 mx-auto mb-4 bg-white p-4 rounded-xl" />
+                                    <p className="text-gray-400 mb-2">Students scan this QR code to check in</p>
+                                    <p className="text-cyan-400 text-sm mb-4">Session: {selectedSession.date}</p>
+                                    
+                                    <div className="bg-gray-700 p-4 rounded-lg mb-4">
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <Link size={16} className="text-cyan-400" />
+                                        <p className="text-white text-sm font-medium">Check-in URL:</p>
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <input 
+                                          type="text" 
+                                          value={checkInUrl} 
+                                          readOnly 
+                                          className="flex-1 bg-gray-600 text-gray-300 px-3 py-2 rounded text-sm"
+                                        />
+                                        <button 
+                                          onClick={copyCheckInUrl}
+                                          className="bg-cyan-500 hover:bg-cyan-600 text-white px-4 py-2 rounded flex items-center gap-2"
+                                        >
+                                          <Copy size={16} />
+                                          Copy
+                                        </button>
+                                      </div>
+                                      <p className="text-gray-400 text-xs mt-2">Share this URL with students or embed the QR code</p>
+                                    </div>
+
                                     <div className="flex gap-3 justify-center">
                                       <button onClick={simulateQRScan} className="px-6 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg">
                                         Simulate Scan
