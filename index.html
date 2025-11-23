@@ -22,20 +22,20 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // Lucide React Icons as inline SVG components
+        // Icon Components
         const CheckCircle = ({ size = 24, className = "" }) => (
             <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                <polyline points="22 4 12 14.01 9 11.01"/>
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
             </svg>
         );
 
         const Users = ({ size = 24, className = "" }) => (
             <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                <circle cx="9" cy="7" r="4"/>
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
             </svg>
         );
 
@@ -69,7 +69,15 @@
             </svg>
         );
 
-        // Student Check-in Component
+        const UserPlus = ({ size = 24, className = "" }) => (
+            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="8.5" cy="7" r="4"/>
+                <line x1="20" y1="8" x2="20" y2="14"/>
+                <line x1="23" y1="11" x2="17" y2="11"/>
+            </svg>
+        );
+
         function StudentCheckIn() {
           const [sessionId, setSessionId] = useState('');
           const [studentId, setStudentId] = useState('');
@@ -79,6 +87,12 @@
           const [useCode, setUseCode] = useState(false);
 
           useEffect(() => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const sessionParam = urlParams.get('session');
+            if (sessionParam) {
+              setSessionId(sessionParam);
+            }
+          }, []);
             const urlParams = new URLSearchParams(window.location.search);
             const sessionParam = urlParams.get('session');
             if (sessionParam) {
@@ -176,16 +190,6 @@
           );
         }
 
-        const UserPlus = ({ size = 24, className = "" }) => (
-            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                <circle cx="8.5" cy="7" r="4"/>
-                <line x1="20" y1="8" x2="20" y2="14"/>
-                <line x1="23" y1="11" x2="17" y2="11"/>
-            </svg>
-        );
-
-        // Display Mode Component
         function DisplayMode() {
           const [currentCode, setCurrentCode] = useState('');
           const [sessionInfo, setSessionInfo] = useState(null);
@@ -394,9 +398,37 @@
 
         const AlertCircle = ({ size = 24, className = "" }) => (
             <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="12" y1="8" x2="12" y2="12"/>
-                <line x1="12" y1="16" x2="12.01" y2="16"/>
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+        );
+
+        const Lock = ({ size = 24, className = "" }) => (
+            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+        );
+
+        const Edit = ({ size = 24, className = "" }) => (
+            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
+        );
+
+        const Plus = ({ size = 24, className = "" }) => (
+            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+        );
+
+        const Eye = ({ size = 24, className = "" }) => (
+            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
             </svg>
         );
 
@@ -468,6 +500,13 @@
           const [newClass, setNewClass] = useState({ name: '', code: '', instructor: '', schedule: '' });
           const [newStudent, setNewStudent] = useState({ name: '', studentId: '', email: '' });
           const [newSession, setNewSession] = useState({ date: '', startTime: '', endTime: '', location: '', autoStart: false });
+          const [showRecurringOptions, setShowRecurringOptions] = useState(false);
+          const [recurringSettings, setRecurringSettings] = useState({
+            enabled: false,
+            frequency: 'weekly',
+            daysOfWeek: [],
+            endDate: ''
+          });
 
           useEffect(() => {
             const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -781,6 +820,7 @@
                       { id: 'classes', icon: Users, label: 'Classes' },
                       { id: 'sessions', icon: Calendar, label: 'Sessions' },
                       { id: 'checkin', icon: UserCheck, label: 'Check-In' },
+                      { id: 'reports', icon: BarChart3, label: 'Reports' },
                       { id: 'accounts', icon: UserPlus, label: 'Accounts' }
                     ].map(tab => (
                       <button key={tab.id} onClick={() => setActiveTab(tab.id)}
@@ -1110,12 +1150,20 @@
                               <input type="date" value={newSession.date}
                                 onChange={(e) => setNewSession({...newSession, date: e.target.value})}
                                 className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg" />
-                              <input type="time" value={newSession.startTime}
-                                onChange={(e) => setNewSession({...newSession, startTime: e.target.value})}
-                                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg" />
-                              <input type="time" value={newSession.endTime}
-                                onChange={(e) => setNewSession({...newSession, endTime: e.target.value})}
-                                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg" />
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className="text-gray-400 text-sm">Start Time</label>
+                                  <input type="time" value={newSession.startTime}
+                                    onChange={(e) => setNewSession({...newSession, startTime: e.target.value})}
+                                    className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg mt-1" />
+                                </div>
+                                <div>
+                                  <label className="text-gray-400 text-sm">End Time</label>
+                                  <input type="time" value={newSession.endTime}
+                                    onChange={(e) => setNewSession({...newSession, endTime: e.target.value})}
+                                    className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg mt-1" />
+                                </div>
+                              </div>
                               <input type="text" placeholder="Location" value={newSession.location}
                                 onChange={(e) => setNewSession({...newSession, location: e.target.value})}
                                 className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg" />
@@ -1128,8 +1176,60 @@
                                 />
                                 <span>Enable automatic start/stop</span>
                               </label>
-                              <p className="text-gray-400 text-xs">Session will automatically start and end at scheduled times</p>
-                              <button onClick={handleAddSession} className="w-full bg-cyan-500 hover:bg-cyan-600 text-white py-2 rounded-lg">Add Session</button>
+
+                              <div className="border-t border-gray-600 pt-3">
+                                <label className="flex items-center gap-3 text-white cursor-pointer mb-3">
+                                  <input 
+                                    type="checkbox" 
+                                    checked={recurringSettings.enabled} 
+                                    onChange={(e) => setRecurringSettings({...recurringSettings, enabled: e.target.checked})} 
+                                    className="w-5 h-5" 
+                                  />
+                                  <span className="font-bold">Recurring Session</span>
+                                </label>
+
+                                {recurringSettings.enabled && (
+                                  <div className="space-y-3 bg-gray-600 p-4 rounded-lg">
+                                    <div>
+                                      <label className="text-gray-300 text-sm mb-2 block">Repeat on:</label>
+                                      <div className="grid grid-cols-7 gap-2">
+                                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => (
+                                          <button
+                                            key={idx}
+                                            type="button"
+                                            onClick={() => {
+                                              const days = recurringSettings.daysOfWeek.includes(idx)
+                                                ? recurringSettings.daysOfWeek.filter(d => d !== idx)
+                                                : [...recurringSettings.daysOfWeek, idx];
+                                              setRecurringSettings({...recurringSettings, daysOfWeek: days});
+                                            }}
+                                            className={'py-2 px-1 rounded text-xs font-bold transition-all ' + 
+                                              (recurringSettings.daysOfWeek.includes(idx) 
+                                                ? 'bg-cyan-500 text-white' 
+                                                : 'bg-gray-700 text-gray-300')}
+                                          >
+                                            {day}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <label className="text-gray-300 text-sm">Repeat until:</label>
+                                      <input 
+                                        type="date" 
+                                        value={recurringSettings.endDate}
+                                        onChange={(e) => setRecurringSettings({...recurringSettings, endDate: e.target.value})}
+                                        className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg mt-1" 
+                                      />
+                                    </div>
+                                    <p className="text-gray-300 text-xs">Sessions will be created for all selected days between start and end date</p>
+                                  </div>
+                                )}
+                              </div>
+
+                              <button onClick={handleAddSession} className="w-full bg-cyan-500 hover:bg-cyan-600 text-white py-2 rounded-lg">
+                                {recurringSettings.enabled ? 'Create Recurring Sessions' : 'Add Session'}
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -1411,11 +1511,221 @@
                       </div>
                     </div>
                   )}
+
+                  {activeTab === 'reports' && (
+                    <div className="space-y-6">
+                      <h2 className="text-3xl font-bold text-white">Reports & Analytics</h2>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {classes.map(cls => {
+                          const clsStudents = students.filter(s => s.classId === cls.id);
+                          const clsSessions = sessions.filter(s => s.classId === cls.id);
+                          const completedSessions = clsSessions.filter(s => s.status === 'completed');
+                          const totalAttendance = attendance.filter(a => {
+                            const session = sessions.find(s => s.id === a.sessionId);
+                            return session && session.classId === cls.id;
+                          });
+                          const presentCount = totalAttendance.filter(a => a.status === 'Present' || a.status === 'Late').length;
+                          const attendanceRate = totalAttendance.length > 0 ? Math.round((presentCount / totalAttendance.length) * 100) : 0;
+
+                          return (
+                            <div key={cls.id} className="bg-gray-800 p-6 rounded-xl border-2 border-gray-700 hover:border-cyan-500 transition-all cursor-pointer"
+                              onClick={() => { setSelectedClass(cls); setActiveTab('class-report'); }}>
+                              <h3 className="text-xl font-bold text-white mb-4">{cls.name}</h3>
+                              <div className="space-y-2">
+                                <div className="flex justify-between">
+                                  <span className="text-gray-400">Students:</span>
+                                  <span className="text-white font-bold">{clsStudents.length}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-400">Sessions:</span>
+                                  <span className="text-white font-bold">{clsSessions.length}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-400">Completed:</span>
+                                  <span className="text-white font-bold">{completedSessions.length}</span>
+                                </div>
+                                <div className="flex justify-between pt-2 border-t border-gray-700">
+                                  <span className="text-gray-400">Attendance Rate:</span>
+                                  <span className="text-cyan-400 font-bold text-xl">{attendanceRate}%</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === 'class-report' && selectedClass && (
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-4 mb-4">
+                        <button onClick={() => setActiveTab('reports')} className="text-cyan-400 hover:text-cyan-300">
+                          ← Back to Reports
+                        </button>
+                        <h2 className="text-3xl font-bold text-white">{selectedClass.name} - Detailed Report</h2>
+                      </div>
+
+                      <div className="bg-gray-800 p-6 rounded-xl">
+                        <h3 className="text-xl font-bold text-white mb-4">Session Summary</h3>
+                        <div className="space-y-2">
+                          {sessions.filter(s => s.classId === selectedClass.id).map(session => {
+                            const sessionAttendance = attendance.filter(a => a.sessionId === session.id);
+                            const presentCount = sessionAttendance.filter(a => a.status === 'Present' || a.status === 'Late').length;
+                            const absentCount = sessionAttendance.filter(a => a.status === 'Absent').length;
+                            const totalStudents = students.filter(s => s.classId === selectedClass.id).length;
+                            const attendanceRate = totalStudents > 0 ? Math.round((presentCount / totalStudents) * 100) : 0;
+
+                            return (
+                              <div key={session.id} className="bg-gray-700 p-4 rounded-lg">
+                                <div className="flex justify-between items-start">
+                                  <div>
+                                    <p className="text-white font-bold">{session.date}</p>
+                                    <p className="text-gray-400 text-sm">{session.startTime} - {session.endTime}</p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-green-400 font-bold">{presentCount} Present</p>
+                                    <p className="text-red-400 text-sm">{absentCount} Absent</p>
+                                    <p className="text-cyan-400 font-bold mt-1">{attendanceRate}%</p>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="bg-gray-800 p-6 rounded-xl">
+                        <h3 className="text-xl font-bold text-white mb-4">Student Summary</h3>
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead>
+                              <tr className="border-b border-gray-700">
+                                <th className="text-left text-cyan-400 py-3 px-4">Student</th>
+                                <th className="text-left text-cyan-400 py-3 px-4">Total Sessions</th>
+                                <th className="text-left text-cyan-400 py-3 px-4">Present</th>
+                                <th className="text-left text-cyan-400 py-3 px-4">Absent</th>
+                                <th className="text-left text-cyan-400 py-3 px-4">Rate</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {students.filter(s => s.classId === selectedClass.id).map(student => {
+                                const studentAttendance = attendance.filter(a => a.studentId === student.id);
+                                const presentCount = studentAttendance.filter(a => a.status === 'Present' || a.status === 'Late').length;
+                                const absentCount = studentAttendance.filter(a => a.status === 'Absent').length;
+                                const totalSessions = sessions.filter(s => s.classId === selectedClass.id && s.status === 'completed').length;
+                                const rate = totalSessions > 0 ? Math.round((presentCount / totalSessions) * 100) : 0;
+
+                                return (
+                                  <tr key={student.id} className="border-b border-gray-700">
+                                    <td className="py-3 px-4">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-2xl">{student.photo}</span>
+                                        <span className="text-white">{student.name}</span>
+                                      </div>
+                                    </td>
+                                    <td className="py-3 px-4 text-gray-300">{totalSessions}</td>
+                                    <td className="py-3 px-4 text-green-400 font-bold">{presentCount}</td>
+                                    <td className="py-3 px-4 text-red-400 font-bold">{absentCount}</td>
+                                    <td className="py-3 px-4">
+                                      <span className={'font-bold ' + (rate >= 80 ? 'text-green-400' : rate >= 60 ? 'text-yellow-400' : 'text-red-400')}>
+                                        {rate}%
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                    <div className="space-y-6">
+                      <div className="flex justify-between items-center">
+                        <h2 className="text-3xl font-bold text-white">Account Management</h2>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="bg-gray-800 p-6 rounded-xl">
+                          <h3 className="text-xl font-bold text-white mb-4">Create New Account</h3>
+                          <div className="space-y-3">
+                            <input type="text" placeholder="Full Name" value={newAccount.name}
+                              onChange={(e) => setNewAccount({...newAccount, name: e.target.value})}
+                              className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600" />
+                            <input type="text" placeholder="Username" value={newAccount.username}
+                              onChange={(e) => setNewAccount({...newAccount, username: e.target.value})}
+                              className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600" />
+                            <input type="password" placeholder="Password" value={newAccount.password}
+                              onChange={(e) => setNewAccount({...newAccount, password: e.target.value})}
+                              className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600" />
+                            <select value={newAccount.role}
+                              onChange={(e) => setNewAccount({...newAccount, role: e.target.value})}
+                              className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600">
+                              <option value="instructor">Instructor</option>
+                              <option value="admin">Administrator</option>
+                              <option value="display">Display Only</option>
+                            </select>
+                            <button onClick={handleAddAccount} className="w-full bg-cyan-500 hover:bg-cyan-600 text-white py-3 rounded-lg font-bold">
+                              <div className="flex items-center justify-center gap-2">
+                                <UserPlus size={20} />
+                                Create Account
+                              </div>
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="bg-gray-800 p-6 rounded-xl">
+                          <h3 className="text-xl font-bold text-white mb-4">Account Roles</h3>
+                          <div className="space-y-3 text-gray-300">
+                            <div className="bg-gray-700 p-3 rounded-lg">
+                              <p className="font-bold text-cyan-400">Administrator</p>
+                              <p className="text-sm">Full access to all features, can manage accounts</p>
+                            </div>
+                            <div className="bg-gray-700 p-3 rounded-lg">
+                              <p className="font-bold text-green-400">Instructor</p>
+                              <p className="text-sm">Manage classes, take attendance, view reports</p>
+                            </div>
+                            <div className="bg-gray-700 p-3 rounded-lg">
+                              <p className="font-bold text-purple-400">Display Only</p>
+                              <p className="text-sm">Shows QR code and rolling code for student check-in</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-gray-800 p-6 rounded-xl">
+                        <h3 className="text-xl font-bold text-white mb-4">Existing Accounts</h3>
+                        <div className="space-y-2">
+                          {accounts.map(account => (
+                            <div key={account.id} className="flex items-center justify-between bg-gray-700 p-4 rounded-lg">
+                              <div>
+                                <p className="text-white font-medium">{account.name}</p>
+                                <p className="text-gray-400 text-sm">@{account.username} • {account.role}</p>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className={'px-3 py-1 rounded-full text-xs font-bold ' + (
+                                  account.role === 'admin' ? 'bg-cyan-500/20 text-cyan-400' :
+                                  account.role === 'instructor' ? 'bg-green-500/20 text-green-400' :
+                                  'bg-purple-500/20 text-purple-400'
+                                )}>{account.role}</span>
+                                {account.id !== 1 && (
+                                  <button onClick={() => handleDeleteAccount(account.id)} className="text-red-400 hover:text-red-300">
+                                    <Trash2 size={18} />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           );
-        }
+        };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<ProAttendanceSystem />);
