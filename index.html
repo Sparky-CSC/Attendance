@@ -73,8 +73,10 @@
         function StudentCheckIn() {
           const [sessionId, setSessionId] = useState('');
           const [studentId, setStudentId] = useState('');
+          const [rollingCode, setRollingCode] = useState('');
           const [submitted, setSubmitted] = useState(false);
           const [error, setError] = useState('');
+          const [useCode, setUseCode] = useState(false);
 
           useEffect(() => {
             const urlParams = new URLSearchParams(window.location.search);
@@ -89,7 +91,10 @@
               setError('Please enter your Student ID');
               return;
             }
-            // In a real app, this would submit to a backend
+            if (useCode && !rollingCode) {
+              setError('Please enter the rolling code');
+              return;
+            }
             setSubmitted(true);
             setTimeout(() => {
               window.close();
@@ -115,20 +120,49 @@
                 <div className="text-center mb-6">
                   <UserCheck size={64} className="text-cyan-500 mx-auto mb-4" />
                   <h1 className="text-3xl font-bold text-gray-800 mb-2">Check-In</h1>
-                  <p className="text-gray-600">Enter your Student ID to record attendance</p>
+                  <p className="text-gray-600">Enter your information to record attendance</p>
                   {sessionId && (
                     <p className="text-sm text-gray-500 mt-2">Session: {sessionId}</p>
                   )}
                 </div>
+                
+                <div className="flex gap-2 mb-4">
+                  <button
+                    onClick={() => setUseCode(false)}
+                    className={`flex-1 py-2 rounded-lg font-medium ${!useCode ? 'bg-cyan-500 text-white' : 'bg-gray-200 text-gray-700'}`}
+                  >
+                    Scan QR
+                  </button>
+                  <button
+                    onClick={() => setUseCode(true)}
+                    className={`flex-1 py-2 rounded-lg font-medium ${useCode ? 'bg-cyan-500 text-white' : 'bg-gray-200 text-gray-700'}`}
+                  >
+                    Enter Code
+                  </button>
+                </div>
+
                 <div className="space-y-4">
                   <input
                     type="text"
                     placeholder="Student ID"
                     value={studentId}
                     onChange={(e) => setStudentId(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSubmit()}
+                    onKeyPress={(e) => e.key === 'Enter' && !useCode && handleSubmit()}
                     className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-cyan-500 focus:outline-none text-gray-800"
                   />
+                  
+                  {useCode && (
+                    <input
+                      type="text"
+                      placeholder="Rolling Code"
+                      value={rollingCode}
+                      onChange={(e) => setRollingCode(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleSubmit()}
+                      className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-cyan-500 focus:outline-none text-gray-800 text-center text-2xl font-mono"
+                      maxLength="6"
+                    />
+                  )}
+                  
                   {error && <p className="text-red-500 text-sm">{error}</p>}
                   <button
                     onClick={handleSubmit}
@@ -136,6 +170,115 @@
                   >
                     Check In
                   </button>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        // Display Mode Component
+        function DisplayMode() {
+          const [currentCode, setCurrentCode] = useState('');
+          const [sessionInfo, setSessionInfo] = useState(null);
+          const [qrCodeData, setQrCodeData] = useState('');
+
+          useEffect(() => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const sessionParam = urlParams.get('session');
+            const classParam = urlParams.get('class');
+            
+            if (sessionParam) {
+              setSessionInfo({
+                sessionId: sessionParam,
+                className: classParam || 'Current Session'
+              });
+              
+              const baseUrl = window.location.origin + window.location.pathname;
+              const checkInLink = baseUrl + '?mode=checkin&session=' + sessionParam;
+              setQrCodeData(checkInLink);
+            }
+          }, []);
+
+          useEffect(() => {
+            const generateCode = () => {
+              const code = Math.floor(100000 + Math.random() * 900000).toString();
+              setCurrentCode(code);
+            };
+
+            generateCode();
+            const interval = setInterval(generateCode, 30000); // New code every 30 seconds
+            return () => clearInterval(interval);
+          }, []);
+
+          const generateQRCode = (data) => {
+            const size = 300;
+            const qrData = encodeURIComponent(data);
+            return 'https://api.qrserver.com/v1/create-qr-code/?size=' + size + 'x' + size + '&data=' + qrData;
+          };
+
+          return (
+            <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-6">
+              <div className="max-w-4xl w-full">
+                <div className="text-center mb-8">
+                  <h1 className="text-5xl font-bold text-white mb-2">Check-In Display</h1>
+                  {sessionInfo && (
+                    <p className="text-2xl text-cyan-400">{sessionInfo.className}</p>
+                  )}
+                  <p className="text-gray-400 mt-2">Scan QR code or enter rolling code to check in</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="bg-gray-800 p-8 rounded-2xl border-2 border-cyan-500">
+                    <h2 className="text-2xl font-bold text-white mb-4 text-center">Scan QR Code</h2>
+                    {qrCodeData ? (
+                      <div className="bg-white p-6 rounded-xl">
+                        <img src={generateQRCode(qrCodeData)} alt="QR Code" className="w-full" />
+                      </div>
+                    ) : (
+                      <div className="bg-gray-700 p-8 rounded-xl text-center">
+                        <QrCode size={64} className="text-gray-500 mx-auto mb-4" />
+                        <p className="text-gray-400">No active session</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="bg-gray-800 p-8 rounded-2xl border-2 border-purple-500">
+                    <h2 className="text-2xl font-bold text-white mb-4 text-center">Rolling Code</h2>
+                    <div className="bg-gradient-to-br from-purple-600 to-pink-600 p-8 rounded-xl text-center">
+                      <p className="text-white text-lg mb-4">Enter this code:</p>
+                      <div className="bg-white rounded-lg py-6 mb-4">
+                        <p className="text-6xl font-bold text-gray-800 tracking-widest font-mono">{currentCode}</p>
+                      </div>
+                      <div className="flex items-center justify-center gap-2 text-purple-200">
+                        <Clock size={16} />
+                        <p className="text-sm">Code refreshes every 30 seconds</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-8 bg-gray-800 p-6 rounded-xl border border-gray-700">
+                  <h3 className="text-xl font-bold text-white mb-4 text-center">Instructions</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-gray-300">
+                    <div>
+                      <p className="font-bold text-cyan-400 mb-2">Option 1: QR Code</p>
+                      <ol className="list-decimal list-inside space-y-1 text-sm">
+                        <li>Open camera on your phone</li>
+                        <li>Point at QR code</li>
+                        <li>Tap the notification</li>
+                        <li>Enter your Student ID</li>
+                      </ol>
+                    </div>
+                    <div>
+                      <p className="font-bold text-purple-400 mb-2">Option 2: Rolling Code</p>
+                      <ol className="list-decimal list-inside space-y-1 text-sm">
+                        <li>Go to check-in page</li>
+                        <li>Enter your Student ID</li>
+                        <li>Enter the rolling code shown</li>
+                        <li>Submit to check in</li>
+                      </ol>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -259,10 +402,12 @@
           const [selectedClass, setSelectedClass] = useState(null);
           const [selectedSession, setSelectedSession] = useState(null);
           const [loginPassword, setLoginPassword] = useState('');
-          const [adminPassword, setAdminPassword] = useState('admin123');
+          const [adminPassword] = useState('admin123');
+          const [displayPassword] = useState('display123');
           const [showCalendar, setShowCalendar] = useState(false);
           const [checkInUrl, setCheckInUrl] = useState('');
-          const [showCheckInUrl, setShowCheckInUrl] = useState(false);
+          const [displayUrl, setDisplayUrl] = useState('');
+          const [showDisplayUrl, setShowDisplayUrl] = useState(false);
           
           const [classes, setClasses] = useState([
             { id: 1, name: 'Computer Science 101', code: 'CS101', instructor: 'Dr. Smith', schedule: 'MWF 9:00-10:00' },
@@ -296,35 +441,32 @@
             }
           }, [classes]);
 
-          // Auto-start/stop sessions
           useEffect(() => {
             const checkSessions = () => {
               const now = new Date();
               const currentDate = now.toISOString().split('T')[0];
-              const currentTime = now.toTimeString().slice(0, 5);
+              const currentTimeStr = now.toTimeString().slice(0, 5);
 
               sessions.forEach(session => {
                 if (session.autoStart && session.date === currentDate) {
-                  // Auto-start
-                  if (session.status === 'scheduled' && currentTime >= session.startTime && currentTime < session.endTime) {
+                  if (session.status === 'scheduled' && currentTimeStr >= session.startTime && currentTimeStr < session.endTime) {
                     setSessions(prev => prev.map(s => 
                       s.id === session.id ? { ...s, status: 'active' } : s
                     ));
-                    addLog(`Auto-started session: ${session.date}`, 'session');
+                    addLog('Auto-started session: ' + session.date, 'session');
                   }
-                  // Auto-stop
-                  if (session.status === 'active' && currentTime >= session.endTime) {
+                  if (session.status === 'active' && currentTimeStr >= session.endTime) {
                     setSessions(prev => prev.map(s => 
                       s.id === session.id ? { ...s, status: 'completed' } : s
                     ));
-                    addLog(`Auto-ended session: ${session.date}`, 'session');
+                    addLog('Auto-ended session: ' + session.date, 'session');
                   }
                 }
               });
             };
 
-            const interval = setInterval(checkSessions, 30000); // Check every 30 seconds
-            checkSessions(); // Check immediately
+            const interval = setInterval(checkSessions, 30000);
+            checkSessions();
             return () => clearInterval(interval);
           }, [sessions]);
 
@@ -337,6 +479,8 @@
               setIsAuthenticated(true);
               setActiveTab('dashboard');
               addLog('Admin logged in', 'auth');
+            } else if (loginPassword === displayPassword) {
+              window.location.href = window.location.pathname + '?mode=display&session=1&class=Current%20Session';
             } else {
               alert('Incorrect password');
             }
@@ -529,6 +673,10 @@
             return <StudentCheckIn />;
           }
 
+          if (mode === 'display') {
+            return <DisplayMode />;
+          }
+
           if (!isAuthenticated) {
             return (
               <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-6">
@@ -553,8 +701,9 @@
                     >
                       Login
                     </button>
-                    <div className="text-center mt-4">
-                      <p className="text-gray-500 text-sm">Default password: admin123</p>
+                    <div className="text-center mt-4 space-y-1">
+                      <p className="text-gray-500 text-sm">Admin password: admin123</p>
+                      <p className="text-gray-500 text-sm">Display password: display123</p>
                     </div>
                   </div>
                 </div>
@@ -991,7 +1140,36 @@
                                           Copy
                                         </button>
                                       </div>
-                                      <p className="text-gray-400 text-xs mt-2">Share this URL with students or embed the QR code</p>
+                                    </div>
+
+                                    <div className="bg-gray-700 p-4 rounded-lg mb-4">
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <Smartphone size={16} className="text-purple-400" />
+                                        <p className="text-white text-sm font-medium">Display Mode URL:</p>
+                                      </div>
+                                      <div className="flex gap-2 mb-2">
+                                        <input 
+                                          type="text" 
+                                          value={displayUrl} 
+                                          readOnly 
+                                          className="flex-1 bg-gray-600 text-gray-300 px-3 py-2 rounded text-sm"
+                                        />
+                                        <button 
+                                          onClick={copyDisplayUrl}
+                                          className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded flex items-center gap-2"
+                                        >
+                                          <Copy size={16} />
+                                          Copy
+                                        </button>
+                                      </div>
+                                      <button 
+                                        onClick={openDisplayMode}
+                                        className="w-full bg-purple-500 hover:bg-purple-600 text-white py-2 rounded flex items-center justify-center gap-2"
+                                      >
+                                        <Smartphone size={16} />
+                                        Open Display Mode
+                                      </button>
+                                      <p className="text-gray-400 text-xs mt-2">Shows QR code and rolling code for laptops/tablets/phones</p>
                                     </div>
 
                                     <div className="flex gap-3 justify-center">
