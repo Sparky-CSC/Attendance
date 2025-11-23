@@ -78,7 +78,7 @@
             </svg>
         );
 
-      function StudentCheckIn() {
+function StudentCheckIn() {
   const [sessionId, setSessionId] = useState('');
   const [studentId, setStudentId] = useState('');
   const [rollingCode, setRollingCode] = useState('');
@@ -93,22 +93,10 @@
       setSessionId(sessionParam);
     }
   }, []);
-          
-    const urlParams = new URLSearchParams(window.location.search);
-    const sessionParam = urlParams.get('session');
-    if (sessionParam) {
-      setSessionId(sessionParam);
-    }
-  }, []);
 
-            const urlParams = new URLSearchParams(window.location.search);
-            const sessionParam = urlParams.get('session');
-            if (sessionParam) {
-              setSessionId(sessionParam);
-            }
-          }, []);
+  const handleSubmit = () => {
+    // ...rest of your existing handleSubmit code...
 
-          const handleSubmit = () => {
             if (!studentId) {
               setError('Please enter your Student ID');
               return;
