@@ -78,21 +78,29 @@
             </svg>
         );
 
-        function StudentCheckIn() {
-          const [sessionId, setSessionId] = useState('');
-          const [studentId, setStudentId] = useState('');
-          const [rollingCode, setRollingCode] = useState('');
-          const [submitted, setSubmitted] = useState(false);
-          const [error, setError] = useState('');
-          const [useCode, setUseCode] = useState(false);
+      function StudentCheckIn() {
+  const [sessionId, setSessionId] = useState('');
+  const [studentId, setStudentId] = useState('');
+  const [rollingCode, setRollingCode] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState('');
+  const [useCode, setUseCode] = useState(false);
 
-          useEffect(() => {
-            const urlParams = new URLSearchParams(window.location.search);
-            const sessionParam = urlParams.get('session');
-            if (sessionParam) {
-              setSessionId(sessionParam);
-            }
-          }, []);
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionParam = urlParams.get('session');
+    if (sessionParam) {
+      setSessionId(sessionParam);
+    }
+  }, []);
+          
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionParam = urlParams.get('session');
+    if (sessionParam) {
+      setSessionId(sessionParam);
+    }
+  }, []);
+
             const urlParams = new URLSearchParams(window.location.search);
             const sessionParam = urlParams.get('session');
             if (sessionParam) {
@@ -418,13 +426,7 @@
             </svg>
         );
 
-        const Plus = ({ size = 24, className = "" }) => (
-            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
-        );
-
+       
         const Eye = ({ size = 24, className = "" }) => (
             <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
@@ -432,20 +434,48 @@
             </svg>
         );
 
-        const Lock = ({ size = 24, className = "" }) => (
-            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-            </svg>
-        );
+        const handleUpdateSession = () => {
+  if (!editingSession) return;
+  setSessions(prev =>
+    prev.map(s => (s.id === editingSession.id ? editingSession : s))
+  );
+  addLog(`Updated session for ${editingSession.date}`, 'session');
+  setShowEditSession(false);
+  setEditingSession(null);
+};
 
-        const Edit = ({ size = 24, className = "" }) => (
-            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-            </svg>
-        );
+const handleAddAccount = () => {
+  if (!newAccount.name || !newAccount.username || !newAccount.password) {
+    alert('Please fill all account fields');
+    return;
+  }
+  const account = {
+    ...newAccount,
+    id: accounts.length + 1,
+  };
+  setAccounts([...accounts, account]);
+  setNewAccount({ username: '', password: '', role: 'instructor', name: '' });
+  addLog(`Created account: ${account.username}`, 'account');
+};
 
+const handleDeleteAccount = (id) => {
+  if (!confirm('Delete this account?')) return;
+  setAccounts(accounts.filter(acc => acc.id !== id));
+  addLog(`Deleted account ID ${id}`, 'account');
+};
+
+const copyDisplayUrl = () => {
+  if (!displayUrl) return;
+  navigator.clipboard.writeText(displayUrl);
+  alert('Display URL copied to clipboard!');
+};
+
+const openDisplayMode = () => {
+  if (!displayUrl) return;
+  window.open(displayUrl, '_blank');
+};
+
+        
         function ProAttendanceSystem() {
           const [activeTab, setActiveTab] = useState('login');
           const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -719,16 +749,20 @@
             return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${qrData}`;
           };
 
-          const handleQRCheckIn = () => {
-            if (!selectedSession) return alert('Please start a session first');
-            const baseUrl = window.location.origin + window.location.pathname;
-            const checkInLink = `${baseUrl}?mode=checkin&session=${selectedSession.id}`;
-            const qrData = checkInLink;
-            setQrCodeData(qrData);
-            setCheckInUrl(checkInLink);
-            setShowQRCode(true);
-            addLog('QR Code generated', 'qr');
-          };
+const handleQRCheckIn = () => {
+  if (!selectedSession) return alert('Please start a session first');
+  const baseUrl = window.location.origin + window.location.pathname;
+
+  const checkInLink = `${baseUrl}?mode=checkin&session=${selectedSession.id}`;
+  const displayLink = `${baseUrl}?mode=display&session=${selectedSession.id}&class=${encodeURIComponent(selectedClass?.name || 'Current Session')}&interval=${codeRefreshInterval}`;
+
+  setQrCodeData(checkInLink);
+  setCheckInUrl(checkInLink);
+  setDisplayUrl(displayLink);
+  setShowQRCode(true);
+  addLog('QR Code generated', 'qr');
+};
+
 
           const copyCheckInUrl = () => {
             navigator.clipboard.writeText(checkInUrl);
