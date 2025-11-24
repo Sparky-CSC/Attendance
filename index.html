@@ -569,6 +569,48 @@ const openDisplayMode = () => {
           const addLog = (event, type) => {
             setCheckInLog(prev => [...prev, { timestamp: new Date().toLocaleString(), event, type }]);
           };
+            
+          const handleAddAccount = () => {
+            // Basic validation
+            if (!newAccount.name || !newAccount.username || !newAccount.password) {
+              alert('Please fill in name, username, and password');
+              return;
+            }
+
+            // Create unique id
+            const nextId =
+              accounts.length > 0
+                ? Math.max(...accounts.map(acc => acc.id)) + 1
+                : 1;
+
+            const accountToAdd = {
+              ...newAccount,
+              id: nextId,
+            };
+
+            setAccounts(prev => [...prev, accountToAdd]);
+            addLog(`Created account: ${newAccount.username} (${newAccount.role})`, 'account');
+
+            // Reset form
+            setNewAccount({
+              username: '',
+              password: '',
+              role: 'instructor',
+              name: '',
+            });
+          };
+
+          const handleDeleteAccount = (id) => {
+            if (id === 1) {
+              alert('You cannot delete the main admin account.');
+              return;
+            }
+            if (!confirm('Delete this account? This cannot be undone.')) return;
+
+            setAccounts(prev => prev.filter(acc => acc.id !== id));
+            addLog(`Deleted account with id ${id}`, 'account');
+          };
+
 
           const handleLogin = () => {
             const account = accounts.find(acc => acc.password === loginPassword);
