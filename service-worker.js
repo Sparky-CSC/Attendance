@@ -7,5 +7,5 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Pass-through; you can add caching rules here if desired.
+  // pass-through for now
 });
