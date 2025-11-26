@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Student TOTP Code App</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0f172a" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Firebase compat SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+</head>
+<body class="bg-slate-900 text-white">
+  <div class="min-h-screen flex items-center justify-center p-6">
+    <div class="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-2xl p-6 shadow-2xl">
+      <h1 class="text-xl font-bold mb-1 text-center">Student Code App</h1>
+      <p class="text-xs text-slate-400 text-center mb-4">
+        Enter your Student ID to view your personal rolling code.
+      </p>
+
+      <label class="block text-xs text-slate-400 mb-1">Student ID</label>
+      <input id="studentId" type="text"
+        class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mb-3" />
+
+      <label class="block text-xs text-slate-400 mb-1">Interval (seconds)</label>
+      <input id="interval" type="number" value="30" min="10" max="300"
+        class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mb-4" />
+
+      <button id="startBtn"
+        class="w-full bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-semibold py-2 rounded-lg mb-4">
+        Start / Refresh
+      </button>
+
+      <div class="bg-gradient-to-br from-emerald-500 to-teal-500 rounded-2xl p-6 text-center">
+        <p class="text-xs uppercase tracking-widest text-emerald-100 mb-2">Your Code</p>
+        <p id="code" class="text-4xl font-extrabold tracking-[0.25em] font-mono bg-white text-slate-900 rounded-xl py-3">
+          ••••••
+        </p>
+        <p id="countdown" class="mt-3 text-xs text-emerald-100"></p>
+      </div>
+
+      <p id="status" class="mt-3 text-xs text-center text-red-400"></p>
+    </div>
+  </div>
+
+  <script>
+    const APP_BASE_SECRET = "ATTENDANCE_BASE_SECRET";
+
+    const firebaseConfig = {
+      // TODO: FILL IN YOUR FIREBASE CONFIG FROM THE CONSOLE
+      // apiKey: "YOUR_API_KEY",
+      // authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      // projectId: "YOUR_PROJECT_ID",
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    function generateTOTP(secret, timeStep, timeOffsetSteps) {
+      const epochSeconds = Math.floor(Date.now() / 1000) + timeOffsetSteps * timeStep;
+      const counter = Math.floor(epochSeconds / timeStep);
+      const data = secret + ":" + counter;
+      let hash = 0;
+      for (let i = 0; i < data.length; i++) {
+        hash = (hash * 31 + data.charCodeAt(i)) | 0;
+      }
+      const code = Math.abs(hash) % 1000000;
+      return String(code).padStart(6, "0");
+    }
+
+    let countdownTimer = null;
+    let codeTimer = null;
+
+    async function start() {
+      const studentIdInput = document.getElementById("studentId");
+      const intervalInput = document.getElementById("interval");
+      const codeEl = document.getElementById("code");
+      const countdownEl = document.getElementById("countdown");
+      const statusEl = document.getElementById("status");
+
+      const studentId = (studentIdInput.value || "").trim();
+      let interval = parseInt(intervalInput.value, 10);
+      if (!studentId) {
+        statusEl.textContent = "Please enter your Student ID.";
+        return;
+      }
+      if (!interval || interval < 10) interval = 30;
+
+      statusEl.textContent = "Loading TOTP secret...";
+      codeEl.textContent = "••••••";
+      countdownEl.textContent = "";
+
+      try {
+        const docRef = db.collection("students").doc(studentId);
+        const snap = await docRef.get();
+        if (!snap.exists) {
+          statusEl.textContent = "No TOTP secret found. Ask your instructor to register you.";
+          return;
+        }
+
+        const data = snap.data();
+        const secret = data.totpSecret;
+        if (!secret) {
+          statusEl.textContent = "No TOTP secret on file. Ask your instructor to assign one.";
+          return;
+        }
+
+        statusEl.textContent = "";
+
+        if (countdownTimer) clearInterval(countdownTimer);
+        if (codeTimer) clearInterval(codeTimer);
+
+        let remaining = interval;
+
+        function updateCode() {
+          const code = generateTOTP(secret, interval, 0);
+          codeEl.textContent = code;
+          remaining = interval;
+          countdownEl.textContent = "Refreshes in " + remaining + "s";
+        }
+
+        updateCode();
+
+        countdownTimer = setInterval(() => {
+          remaining = Math.max(0, remaining - 1);
+          countdownEl.textContent = "Refreshes in " + remaining + "s";
+        }, 1000);
+
+        codeTimer = setInterval(updateCode, interval * 1000);
+      } catch (err) {
+        console.error("Error loading student secret", err);
+        statusEl.textContent = "Something went wrong. Try again later.";
+      }
+    }
+
+    document.getElementById("startBtn").addEventListener("click", start);
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("service-worker.js");
+    }
+  </script>
+</body>
+</html>
