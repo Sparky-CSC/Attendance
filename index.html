@@ -1,1798 +1,1028 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Attendance Management System</title>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Attendance Management System - TOTP v3</title>
+  <!-- React & Babel -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Firebase compat SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <meta name="theme-color" content="#0f172a" />
 </head>
-<body>
-    <div id="root"></div>
-    
-    <script type="text/babel">
-        const { useState, useEffect } = React;
+<body class="bg-slate-900">
+  <div id="root"></div>
 
-        // Icon Components
-        const CheckCircle = ({ size = 24, className = "" }) => (
-            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                <polyline points="22 4 12 14.01 9 11.01"></polyline>
-            </svg>
-        );
+  <script type="text/babel">
+    const { useState, useEffect } = React;
 
-        const Users = ({ size = 24, className = "" }) => (
-            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                <circle cx="9" cy="7" r="4"></circle>
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-            </svg>
-        );
+    // ======== Firebase init (REPLACE CONFIG) ========
+    const firebaseConfig = {
+      // TODO: FILL IN YOUR FIREBASE CONFIG FROM THE CONSOLE
+      // apiKey: "YOUR_API_KEY",
+      // authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      // projectId: "YOUR_PROJECT_ID",
+    };
 
-        const Clock = ({ size = 24, className = "" }) => (
-            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <polyline points="12 6 12 12 16 14"/>
-            </svg>
-        );
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
 
-        const Calendar = ({ size = 24, className = "" }) => (
-            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                <line x1="16" y1="2" x2="16" y2="6"/>
-                <line x1="8" y1="2" x2="8" y2="6"/>
-                <line x1="3" y1="10" x2="21" y2="10"/>
-            </svg>
-        );
+    // ======== Shared TOTP helpers ========
+    const APP_BASE_SECRET = "ATTENDANCE_BASE_SECRET";
 
-        const Link = ({ size = 24, className = "" }) => (
-            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-            </svg>
-        );
-
-        const Copy = ({ size = 24, className = "" }) => (
-            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-            </svg>
-        );
-
-        const UserPlus = ({ size = 24, className = "" }) => (
-            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                <circle cx="8.5" cy="7" r="4"/>
-                <line x1="20" y1="8" x2="20" y2="14"/>
-                <line x1="23" y1="11" x2="17" y2="11"/>
-            </svg>
-        );
-
-function StudentCheckIn() {
-  const [sessionId, setSessionId] = useState('');
-  const [studentId, setStudentId] = useState('');
-  const [rollingCode, setRollingCode] = useState('');
-  const [submitted, setSubmitted] = useState(false);
-  const [error, setError] = useState('');
-  const [useCode, setUseCode] = useState(false);
-
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const sessionParam = urlParams.get('session');
-    if (sessionParam) {
-      setSessionId(sessionParam);
+    function generateTOTP(secret, timeStep = 30, timeOffsetSteps = 0) {
+      const epochSeconds = Math.floor(Date.now() / 1000) + timeOffsetSteps * timeStep;
+      const counter = Math.floor(epochSeconds / timeStep);
+      const data = secret + ":" + counter;
+      let hash = 0;
+      for (let i = 0; i < data.length; i++) {
+        hash = (hash * 31 + data.charCodeAt(i)) | 0;
+      }
+      const code = Math.abs(hash) % 1000000;
+      return String(code).padStart(6, "0");
     }
-  }, []);
 
-  const handleSubmit = () => {
-    // ...rest of your existing handleSubmit code...
+    function verifyTOTP(token, secret, timeStep = 30, window = 1) {
+      token = (token || "").trim();
+      if (!/^[0-9]{6}$/.test(token)) return false;
+      for (let offset = -window; offset <= window; offset++) {
+        const expected = generateTOTP(secret, timeStep, offset);
+        if (expected === token) return true;
+      }
+      return false;
+    }
 
-            if (!studentId) {
-              setError('Please enter your Student ID');
-              return;
-            }
-            if (useCode && !rollingCode) {
-              setError('Please enter the rolling code');
-              return;
-            }
-            setSubmitted(true);
-            setTimeout(() => {
-              window.close();
-            }, 3000);
-          };
+    // ======== Icons (subset) ========
+    const Lock = ({ size = 24, className = "" }) => (
+      <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+      </svg>
+    );
 
-          if (submitted) {
-            return (
-              <div className="min-h-screen bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center p-6">
-                <div className="bg-white p-8 rounded-2xl shadow-2xl text-center max-w-md">
-                  <CheckCircle size={80} className="text-green-500 mx-auto mb-4" />
-                  <h1 className="text-3xl font-bold text-gray-800 mb-2">Checked In!</h1>
-                  <p className="text-gray-600">Your attendance has been recorded.</p>
-                  <p className="text-gray-500 text-sm mt-4">This window will close automatically...</p>
-                </div>
-              </div>
-            );
-          }
+    const CheckCircle = ({ size = 24, className = "" }) => (
+      <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+      </svg>
+    );
 
-          return (
-            <div className="min-h-screen bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center p-6">
-              <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
-                <div className="text-center mb-6">
-                  <UserCheck size={64} className="text-cyan-500 mx-auto mb-4" />
-                  <h1 className="text-3xl font-bold text-gray-800 mb-2">Check-In</h1>
-                  <p className="text-gray-600">Enter your information to record attendance</p>
-                  {sessionId && (
-                    <p className="text-sm text-gray-500 mt-2">Session: {sessionId}</p>
-                  )}
-                </div>
-                
-                <div className="flex gap-2 mb-4">
-                  <button
-                    onClick={() => setUseCode(false)}
-                    className={`flex-1 py-2 rounded-lg font-medium ${!useCode ? 'bg-cyan-500 text-white' : 'bg-gray-200 text-gray-700'}`}
-                  >
-                    Scan QR
-                  </button>
-                  <button
-                    onClick={() => setUseCode(true)}
-                    className={`flex-1 py-2 rounded-lg font-medium ${useCode ? 'bg-cyan-500 text-white' : 'bg-gray-200 text-gray-700'}`}
-                  >
-                    Enter Code
-                  </button>
-                </div>
+    const Users = ({ size = 24, className = "" }) => (
+      <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+        <circle cx="9" cy="7" r="4"></circle>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+      </svg>
+    );
 
-                <div className="space-y-4">
-                  <input
-                    type="text"
-                    placeholder="Student ID"
-                    value={studentId}
-                    onChange={(e) => setStudentId(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && !useCode && handleSubmit()}
-                    className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-cyan-500 focus:outline-none text-gray-800"
-                  />
-                  
-                  {useCode && (
-                    <input
-                      type="text"
-                      placeholder="Rolling Code"
-                      value={rollingCode}
-                      onChange={(e) => setRollingCode(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleSubmit()}
-                      className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-cyan-500 focus:outline-none text-gray-800 text-center text-2xl font-mono"
-                      maxLength="6"
-                    />
-                  )}
-                  
-                  {error && <p className="text-red-500 text-sm">{error}</p>}
-                  <button
-                    onClick={handleSubmit}
-                    className="w-full bg-cyan-500 hover:bg-cyan-600 text-white py-3 rounded-lg font-bold transition-all"
-                  >
-                    Check In
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
+    const Calendar = ({ size = 24, className = "" }) => (
+      <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+        <line x1="16" y1="2" x2="16" y2="6"/>
+        <line x1="8" y1="2" x2="8" y2="6"/>
+        <line x1="3" y1="10" x2="21" y2="10"/>
+      </svg>
+    );
+
+    const Clock = ({ size = 24, className = "" }) => (
+      <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <polyline points="12 6 12 12 16 14"/>
+      </svg>
+    );
+
+    const AlertCircle = ({ size = 24, className = "" }) => (
+      <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="8" x2="12" y2="12"></line>
+        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+      </svg>
+    );
+
+    const QrCodeIcon = ({ size = 24, className = "" }) => (
+      <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="7" height="7"/>
+        <rect x="14" y="3" width="7" height="7"/>
+        <rect x="3" y="14" width="7" height="7"/>
+        <path d="M17 14h1v1h-1v-1zm3 0h1v1h-1v-1zm-3 3h1v1h-1v-1zm3 0h1v1h-1v-1zm-3 3h1v1h-1v-1zm3 0h1v1h-1v-1z"/>
+      </svg>
+    );
+
+    const UserCheck = ({ size = 24, className = "" }) => (
+      <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="8.5" cy="7" r="4"/>
+        <polyline points="17 11 19 13 23 9"/>
+      </svg>
+    );
+
+    const Trash2 = ({ size = 24, className = "" }) => (
+      <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="3 6 5 6 21 6"/>
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+      </svg>
+    );
+
+    const Plus = ({ size = 24, className = "" }) => (
+      <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19" />
+        <line x1="5" y1="12" x2="19" y2="12" />
+      </svg>
+    );
+
+    const CopyIcon = ({ size = 24, className = "" }) => (
+      <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+      </svg>
+    );
+
+    const Smartphone = ({ size = 24, className = "" }) => (
+      <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+        <line x1="12" y1="18" x2="12.01" y2="18"/>
+      </svg>
+    );
+
+    // ======== Student Check-In Page (per-student TOTP verification) ========
+    function StudentCheckIn() {
+      const [sessionId, setSessionId] = useState("");
+      const [classId, setClassId] = useState("");
+      const [studentId, setStudentId] = useState("");
+      const [useCode, setUseCode] = useState(true);
+      const [code, setCode] = useState("");
+      const [error, setError] = useState("");
+      const [submitted, setSubmitted] = useState(false);
+
+      useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionParam = urlParams.get("session");
+        const classParam = urlParams.get("classId");
+        if (sessionParam) setSessionId(sessionParam);
+        if (classParam) setClassId(classParam);
+      }, []);
+
+      const handleSubmit = async () => {
+        setError("");
+
+        if (!studentId.trim()) {
+          setError("Please enter your Student ID");
+          return;
         }
 
-        function DisplayMode() {
-          const [currentCode, setCurrentCode] = useState('');
-          const [sessionInfo, setSessionInfo] = useState(null);
-          const [qrCodeData, setQrCodeData] = useState('');
-          const [countdown, setCountdown] = useState(30);
-          const [codeInterval, setCodeInterval] = useState(30);
-
-          useEffect(() => {
-            const urlParams = new URLSearchParams(window.location.search);
-            const sessionParam = urlParams.get('session');
-            const classParam = urlParams.get('class');
-            const intervalParam = urlParams.get('interval');
-            
-            if (intervalParam) {
-              setCodeInterval(parseInt(intervalParam));
-            }
-            
-            if (sessionParam) {
-              setSessionInfo({
-                sessionId: sessionParam,
-                className: decodeURIComponent(classParam || 'Current Session')
-              });
-            }
-          }, []);
-
-          useEffect(() => {
-            const generateCode = () => {
-              const code = Math.floor(100000 + Math.random() * 900000).toString();
-              setCurrentCode(code);
-              setCountdown(codeInterval);
-              
-              if (sessionInfo) {
-                const baseUrl = window.location.origin + window.location.pathname;
-                const checkInLink = baseUrl + '?mode=checkin&session=' + sessionInfo.sessionId + '&code=' + code;
-                setQrCodeData(checkInLink);
-              }
-            };
-
-            generateCode();
-            const interval = setInterval(generateCode, codeInterval * 1000);
-            return () => clearInterval(interval);
-          }, [sessionInfo, codeInterval]);
-
-          useEffect(() => {
-            const timer = setInterval(() => {
-              setCountdown(prev => prev > 0 ? prev - 1 : codeInterval);
-            }, 1000);
-            return () => clearInterval(timer);
-          }, [codeInterval]);
-
-          const generateQRCode = (data) => {
-            const size = 300;
-            const qrData = encodeURIComponent(data);
-            return 'https://api.qrserver.com/v1/create-qr-code/?size=' + size + 'x' + size + '&data=' + qrData;
-          };
-
-          return (
-            <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-6">
-              <div className="max-w-4xl w-full">
-                <div className="text-center mb-8">
-                  <h1 className="text-5xl font-bold text-white mb-2">Check-In Display</h1>
-                  {sessionInfo && (
-                    <div>
-                      <p className="text-2xl text-cyan-400">{sessionInfo.className}</p>
-                      <p className="text-gray-400 mt-2">Session ID: {sessionInfo.sessionId}</p>
-                    </div>
-                  )}
-                  <p className="text-gray-400 mt-2">Scan QR code or enter rolling code to check in</p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="bg-gray-800 p-8 rounded-2xl border-2 border-cyan-500">
-                    <h2 className="text-2xl font-bold text-white mb-4 text-center">Scan QR Code</h2>
-                    {qrCodeData ? (
-                      <div className="bg-white p-6 rounded-xl">
-                        <img src={generateQRCode(qrCodeData)} alt="QR Code" className="w-full" />
-                      </div>
-                    ) : (
-                      <div className="bg-gray-700 p-8 rounded-xl text-center">
-                        <QrCode size={64} className="text-gray-500 mx-auto mb-4" />
-                        <p className="text-gray-400">Generating code...</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="bg-gray-800 p-8 rounded-2xl border-2 border-purple-500">
-                    <h2 className="text-2xl font-bold text-white mb-4 text-center">Rolling Code</h2>
-                    <div className="bg-gradient-to-br from-purple-600 to-pink-600 p-8 rounded-xl text-center">
-                      <p className="text-white text-lg mb-4">Enter this code:</p>
-                      <div className="bg-white rounded-lg py-6 mb-4">
-                        <p className="text-6xl font-bold text-gray-800 tracking-widest font-mono">{currentCode}</p>
-                      </div>
-                      <div className="flex items-center justify-center gap-2 text-purple-200 mb-2">
-                        <Clock size={20} />
-                        <p className="text-lg font-bold">{countdown}s</p>
-                      </div>
-                      <p className="text-purple-200 text-sm">New code in {countdown} seconds</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-8 bg-gray-800 p-6 rounded-xl border border-gray-700">
-                  <h3 className="text-xl font-bold text-white mb-4 text-center">Instructions</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-gray-300">
-                    <div>
-                      <p className="font-bold text-cyan-400 mb-2">Option 1: QR Code</p>
-                      <ol className="list-decimal list-inside space-y-1 text-sm">
-                        <li>Open camera on your phone</li>
-                        <li>Point at QR code</li>
-                        <li>Tap the notification</li>
-                        <li>Enter your Student ID</li>
-                      </ol>
-                    </div>
-                    <div>
-                      <p className="font-bold text-purple-400 mb-2">Option 2: Rolling Code</p>
-                      <ol className="list-decimal list-inside space-y-1 text-sm">
-                        <li>Go to check-in page</li>
-                        <li>Enter your Student ID</li>
-                        <li>Enter the rolling code shown</li>
-                        <li>Submit to check in</li>
-                      </ol>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
+        if (useCode && !code.trim()) {
+          setError("Please enter the rolling code");
+          return;
         }
 
-        const BarChart3 = ({ size = 24, className = "" }) => (
-            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="20" x2="12" y2="10"/>
-                <line x1="18" y1="20" x2="18" y2="4"/>
-                <line x1="6" y1="20" x2="6" y2="16"/>
-            </svg>
-        );
+        try {
+          if (useCode) {
+            const docRef = db.collection("students").doc(studentId.trim());
+            const snap = await docRef.get();
 
-        const Settings = ({ size = 24, className = "" }) => (
-            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M12 1v6m0 6v6m9-9h-6m-6 0H3"/>
-            </svg>
-        );
-
-        const UserCheck = ({ size = 24, className = "" }) => (
-            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                <circle cx="8.5" cy="7" r="4"/>
-                <polyline points="17 11 19 13 23 9"/>
-            </svg>
-        );
-
-        const Plus = ({ size = 24, className = "" }) => (
-            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"/>
-                <line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-        );
-
-        const Trash2 = ({ size = 24, className = "" }) => (
-            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 6 5 6 21 6"/>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-            </svg>
-        );
-
-        const X = ({ size = 24, className = "" }) => (
-            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"/>
-                <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-        );
-
-        const Upload = ({ size = 24, className = "" }) => (
-            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="17 8 12 3 7 8"/>
-                <line x1="12" y1="3" x2="12" y2="15"/>
-            </svg>
-        );
-
-        const FileDown = ({ size = 24, className = "" }) => (
-            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <path d="M12 18v-6"/>
-                <path d="m9 15 3 3 3-3"/>
-            </svg>
-        );
-
-        const QrCode = ({ size = 24, className = "" }) => (
-            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="7" height="7"/>
-                <rect x="14" y="3" width="7" height="7"/>
-                <rect x="3" y="14" width="7" height="7"/>
-                <path d="M17 14h1v1h-1v-1zm3 0h1v1h-1v-1zm-3 3h1v1h-1v-1zm3 0h1v1h-1v-1zm-3 3h1v1h-1v-1zm3 0h1v1h-1v-1z"/>
-            </svg>
-        );
-
-        const Smartphone = ({ size = 24, className = "" }) => (
-            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
-                <line x1="12" y1="18" x2="12.01" y2="18"/>
-            </svg>
-        );
-
-        const AlertCircle = ({ size = 24, className = "" }) => (
-            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="12"></line>
-                <line x1="12" y1="16" x2="12.01" y2="16"></line>
-            </svg>
-        );
-
-        const Lock = ({ size = 24, className = "" }) => (
-            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-            </svg>
-        );
-
-        const Edit = ({ size = 24, className = "" }) => (
-            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-            </svg>
-        );
-
-       
-        const Eye = ({ size = 24, className = "" }) => (
-            <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                <circle cx="12" cy="12" r="3"></circle>
-            </svg>
-        );
-
-        const handleUpdateSession = () => {
-  if (!editingSession) return;
-  setSessions(prev =>
-    prev.map(s => (s.id === editingSession.id ? editingSession : s))
-  );
-  addLog(`Updated session for ${editingSession.date}`, 'session');
-  setShowEditSession(false);
-  setEditingSession(null);
-};
-
-const handleAddAccount = () => {
-  if (!newAccount.name || !newAccount.username || !newAccount.password) {
-    alert('Please fill all account fields');
-    return;
-  }
-  const account = {
-    ...newAccount,
-    id: accounts.length + 1,
-  };
-  setAccounts([...accounts, account]);
-  setNewAccount({ username: '', password: '', role: 'instructor', name: '' });
-  addLog(`Created account: ${account.username}`, 'account');
-};
-
-const handleDeleteAccount = (id) => {
-  if (!confirm('Delete this account?')) return;
-  setAccounts(accounts.filter(acc => acc.id !== id));
-  addLog(`Deleted account ID ${id}`, 'account');
-};
-
-const copyDisplayUrl = () => {
-  if (!displayUrl) return;
-  navigator.clipboard.writeText(displayUrl);
-  alert('Display URL copied to clipboard!');
-};
-
-const openDisplayMode = () => {
-  if (!displayUrl) return;
-  window.open(displayUrl, '_blank');
-};
-
-        
-        function ProAttendanceSystem() {
-          const [activeTab, setActiveTab] = useState('login');
-          const [isAuthenticated, setIsAuthenticated] = useState(false);
-          const [currentTime, setCurrentTime] = useState(new Date());
-          const [attendanceMode, setAttendanceMode] = useState('manual');
-          const [showQRCode, setShowQRCode] = useState(false);
-          const [qrCodeData, setQrCodeData] = useState('');
-          const [nfcListening, setNfcListening] = useState(false);
-          const [checkInLog, setCheckInLog] = useState([]);
-          const [searchQuery, setSearchQuery] = useState('');
-          const [showAddClass, setShowAddClass] = useState(false);
-          const [showAddStudent, setShowAddStudent] = useState(false);
-          const [showAddSession, setShowAddSession] = useState(false);
-          const [showEditClass, setShowEditClass] = useState(false);
-          const [editingClass, setEditingClass] = useState(null);
-          const [selectedClass, setSelectedClass] = useState(null);
-          const [selectedSession, setSelectedSession] = useState(null);
-          const [loginPassword, setLoginPassword] = useState('');
-          const [adminPassword] = useState('admin123');
-          const [displayPassword] = useState('display123');
-          const [showCalendar, setShowCalendar] = useState(false);
-          const [checkInUrl, setCheckInUrl] = useState('');
-          const [displayUrl, setDisplayUrl] = useState('');
-          const [showDisplayUrl, setShowDisplayUrl] = useState(false);
-          const [codeRefreshInterval, setCodeRefreshInterval] = useState(30);
-          const [showEditSession, setShowEditSession] = useState(false);
-          const [editingSession, setEditingSession] = useState(null);
-          const [showAccountManager, setShowAccountManager] = useState(false);
-          const [accounts, setAccounts] = useState([
-            { id: 1, username: 'admin', password: 'admin123', role: 'admin', name: 'Administrator' },
-            { id: 2, username: 'display', password: 'display123', role: 'display', name: 'Display Mode' }
-          ]);
-          const [newAccount, setNewAccount] = useState({ username: '', password: '', role: 'instructor', name: '' });
-          
-          const [classes, setClasses] = useState([
-            { id: 1, name: 'Computer Science 101', code: 'CS101', instructor: 'Dr. Smith', schedule: 'MWF 9:00-10:00' },
-            { id: 2, name: 'Mathematics 201', code: 'MATH201', instructor: 'Prof. Johnson', schedule: 'TTh 11:00-12:30' }
-          ]);
-
-          const [sessions, setSessions] = useState([
-            { id: 1, classId: 1, date: '2024-11-22', startTime: '09:00', endTime: '10:00', status: 'scheduled', location: 'Room 101', autoStart: false },
-            { id: 2, classId: 1, date: '2024-11-24', startTime: '09:00', endTime: '10:00', status: 'scheduled', location: 'Room 101', autoStart: false }
-          ]);
-
-          const [students, setStudents] = useState([
-            { id: 1, classId: 1, name: 'John Doe', studentId: 'STU001', email: 'john@example.com', photo: '👨‍🎓' },
-            { id: 2, classId: 1, name: 'Jane Smith', studentId: 'STU002', email: 'jane@example.com', photo: '👩‍🎓' },
-            { id: 3, classId: 1, name: 'Bob Johnson', studentId: 'STU003', email: 'bob@example.com', photo: '👨‍💼' }
-          ]);
-
-          const [attendance, setAttendance] = useState([]);
-          const [newClass, setNewClass] = useState({ name: '', code: '', instructor: '', schedule: '' });
-          const [newStudent, setNewStudent] = useState({ name: '', studentId: '', email: '' });
-          const [newSession, setNewSession] = useState({ date: '', startTime: '', endTime: '', location: '', autoStart: false });
-          const [showRecurringOptions, setShowRecurringOptions] = useState(false);
-          const [recurringSettings, setRecurringSettings] = useState({
-            enabled: false,
-            frequency: 'weekly',
-            daysOfWeek: [],
-            endDate: ''
-          });
-
-          useEffect(() => {
-            const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-            return () => clearInterval(timer);
-          }, []);
-
-          useEffect(() => {
-            if (classes.length > 0 && !selectedClass) {
-              setSelectedClass(classes[0]);
-            }
-          }, [classes]);
-
-          useEffect(() => {
-            const checkSessions = () => {
-              const now = new Date();
-              const currentDate = now.toISOString().split('T')[0];
-              const currentTimeStr = now.toTimeString().slice(0, 5);
-
-              sessions.forEach(session => {
-                if (session.autoStart && session.date === currentDate) {
-                  if (session.status === 'scheduled' && currentTimeStr >= session.startTime && currentTimeStr < session.endTime) {
-                    setSessions(prev => prev.map(s => 
-                      s.id === session.id ? { ...s, status: 'active' } : s
-                    ));
-                    addLog('Auto-started session: ' + session.date, 'session');
-                  }
-                  if (session.status === 'active' && currentTimeStr >= session.endTime) {
-                    setSessions(prev => prev.map(s => 
-                      s.id === session.id ? { ...s, status: 'completed' } : s
-                    ));
-                    addLog('Auto-ended session: ' + session.date, 'session');
-                  }
-                }
-              });
-            };
-
-            const interval = setInterval(checkSessions, 30000);
-            checkSessions();
-            return () => clearInterval(interval);
-          }, [sessions]);
-
-          const addLog = (event, type) => {
-            setCheckInLog(prev => [...prev, { timestamp: new Date().toLocaleString(), event, type }]);
-          };
-            
-          const handleAddAccount = () => {
-            // Basic validation
-            if (!newAccount.name || !newAccount.username || !newAccount.password) {
-              alert('Please fill in name, username, and password');
+            if (!snap.exists) {
+              setError("We couldn't find your TOTP setup. Ask your instructor to register you.");
               return;
             }
 
-            // Create unique id
-            const nextId =
-              accounts.length > 0
-                ? Math.max(...accounts.map(acc => acc.id)) + 1
-                : 1;
-
-            const accountToAdd = {
-              ...newAccount,
-              id: nextId,
-            };
-
-            setAccounts(prev => [...prev, accountToAdd]);
-            addLog(`Created account: ${newAccount.username} (${newAccount.role})`, 'account');
-
-            // Reset form
-            setNewAccount({
-              username: '',
-              password: '',
-              role: 'instructor',
-              name: '',
-            });
-          };
-
-          const handleDeleteAccount = (id) => {
-            if (id === 1) {
-              alert('You cannot delete the main admin account.');
+            const data = snap.data();
+            const secret = data.totpSecret;
+            if (!secret) {
+              setError("No TOTP secret on file. Ask your instructor to assign one.");
               return;
             }
-            if (!confirm('Delete this account? This cannot be undone.')) return;
 
-            setAccounts(prev => prev.filter(acc => acc.id !== id));
-            addLog(`Deleted account with id ${id}`, 'account');
-          };
-
-
-          const handleLogin = () => {
-            const account = accounts.find(acc => acc.password === loginPassword);
-            if (account) {
-              if (account.role === 'admin' || account.role === 'instructor') {
-                setIsAuthenticated(true);
-                setActiveTab('dashboard');
-                addLog(account.name + ' logged in', 'auth');
-              } else if (account.role === 'display') {
-                window.location.href = window.location.pathname + '?mode=display&session=1&class=Current%20Session&interval=' + codeRefreshInterval;
-              }
-            } else {
-              alert('Incorrect password');
+            const ok = verifyTOTP(code.trim(), secret, 30, 1);
+            if (!ok) {
+              setError("Invalid or expired code. Double-check the digits and try again.");
+              return;
             }
-          };
-
-          const handleLogout = () => {
-            setIsAuthenticated(false);
-            setActiveTab('login');
-            addLog('Admin logged out', 'auth');
-          };
-
-          const handleEditClass = (cls) => {
-            setEditingClass({...cls});
-            setShowEditClass(true);
-          };
-
-          const handleUpdateClass = () => {
-            if (!editingClass.name || !editingClass.code) return alert('Please enter class name and code');
-            setClasses(classes.map(c => c.id === editingClass.id ? editingClass : c));
-            setShowEditClass(false);
-            addLog(`Updated class: ${editingClass.name}`, 'class');
-            setEditingClass(null);
-          };
-
-          const handleDeleteClass = (classId) => {
-            if (!confirm('Delete this class and all related data? This cannot be undone.')) return;
-            setClasses(classes.filter(c => c.id !== classId));
-            setStudents(students.filter(s => s.classId !== classId));
-            setSessions(sessions.filter(s => s.classId !== classId));
-            setAttendance(attendance.filter(a => {
-              const session = sessions.find(s => s.id === a.sessionId);
-              return session ? session.classId !== classId : true;
-            }));
-            if (selectedClass?.id === classId) setSelectedClass(null);
-            addLog('Deleted class and all related data', 'class');
-          };
-
-          const handleDeleteStudent = (studentId) => {
-            if (!confirm('Delete this student? This cannot be undone.')) return;
-            setStudents(students.filter(s => s.id !== studentId));
-            setAttendance(attendance.filter(a => a.studentId !== studentId));
-            addLog('Deleted student', 'student');
-          };
-
-          const handleDeleteSession = (sessionId) => {
-            if (!confirm('Delete this session? This cannot be undone.')) return;
-            setSessions(sessions.filter(s => s.id !== sessionId));
-            setAttendance(attendance.filter(a => a.sessionId !== sessionId));
-            if (selectedSession?.id === sessionId) setSelectedSession(null);
-            addLog('Deleted session', 'session');
-          };
-
-          const handleAddClass = () => {
-            if (!newClass.name || !newClass.code) return alert('Please enter class name and code');
-            const newClassObj = { ...newClass, id: classes.length + 1 };
-            setClasses([...classes, newClassObj]);
-            setNewClass({ name: '', code: '', instructor: '', schedule: '' });
-            setShowAddClass(false);
-            addLog(`Added class: ${newClass.name}`, 'class');
-          };
-
-          const handleAddStudent = () => {
-            if (!newStudent.name || !newStudent.studentId) return alert('Please enter student name and ID');
-            if (!selectedClass) return alert('Please select a class first');
-            const studentObj = { ...newStudent, id: students.length + 1, classId: selectedClass.id, photo: '👤' };
-            setStudents([...students, studentObj]);
-            setNewStudent({ name: '', studentId: '', email: '' });
-            setShowAddStudent(false);
-            addLog(`Added student: ${newStudent.name}`, 'student');
-          };
-
-          const handleUploadClassList = (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            
-            const reader = new FileReader();
-            reader.onload = (event) => {
-              const text = event.target.result;
-              const lines = text.split('\n');
-              const newStudents = [];
-              
-              for (let i = 1; i < lines.length; i++) {
-                const line = lines[i].trim();
-                if (!line) continue;
-                
-                const [name, studentId, email] = line.split(',').map(s => s.trim());
-                if (name && studentId) {
-                  newStudents.push({
-                    id: students.length + newStudents.length + 1,
-                    classId: selectedClass.id,
-                    name,
-                    studentId,
-                    email: email || '',
-                    photo: '👤'
-                  });
-                }
-              }
-              
-              setStudents([...students, ...newStudents]);
-              addLog(`Uploaded ${newStudents.length} students`, 'upload');
-              alert(`Successfully uploaded ${newStudents.length} students`);
-            };
-            reader.readAsText(file);
-            e.target.value = '';
-          };
-
-          const handleAddSession = () => {
-            if (!newSession.date || !newSession.startTime || !newSession.endTime) return alert('Please fill all session fields');
-            if (!selectedClass) return alert('Please select a class first');
-            const sessionObj = {
-              ...newSession,
-              id: sessions.length + 1,
-              classId: selectedClass.id,
-              status: 'scheduled'
-            };
-            setSessions([...sessions, sessionObj]);
-            setNewSession({ date: '', startTime: '', endTime: '', location: '', autoStart: false });
-            setShowAddSession(false);
-            addLog(`Added session for ${newSession.date}`, 'session');
-          };
-
-          const handleStartSession = (session) => {
-            setSelectedSession(session);
-            setSessions(sessions.map(s => s.id === session.id ? { ...s, status: 'active' } : s));
-            addLog(`Started session for ${session.date}`, 'session');
-          };
-
-          const handleStatusChange = (studentId, newStatus, sessionId) => {
-            const existingAttendance = attendance.find(a => a.sessionId === sessionId && a.studentId === studentId);
-            const student = students.find(s => s.id === studentId);
-            
-            if (existingAttendance) {
-              setAttendance(attendance.map(a => 
-                a.sessionId === sessionId && a.studentId === studentId
-                  ? { ...a, status: newStatus, checkInTime: newStatus !== 'Absent' ? new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-' }
-                  : a
-              ));
-            } else {
-              setAttendance([...attendance, {
-                id: attendance.length + 1,
-                sessionId,
-                studentId,
-                status: newStatus,
-                checkInTime: newStatus !== 'Absent' ? new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-',
-                location: 'In-Person'
-              }]);
-            }
-            
-            addLog(`${student?.name || 'Student'} marked as ${newStatus}`, 'status');
-          };
-
-          const generateQRCode = (data) => {
-            const size = 200;
-            const qrData = encodeURIComponent(data);
-            return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${qrData}`;
-          };
-
-const handleQRCheckIn = () => {
-  if (!selectedSession) return alert('Please start a session first');
-  const baseUrl = window.location.origin + window.location.pathname;
-
-  const checkInLink = `${baseUrl}?mode=checkin&session=${selectedSession.id}`;
-  const displayLink = `${baseUrl}?mode=display&session=${selectedSession.id}&class=${encodeURIComponent(selectedClass?.name || 'Current Session')}&interval=${codeRefreshInterval}`;
-
-  setQrCodeData(checkInLink);
-  setCheckInUrl(checkInLink);
-  setDisplayUrl(displayLink);
-  setShowQRCode(true);
-  addLog('QR Code generated', 'qr');
-};
-
-
-          const copyCheckInUrl = () => {
-            navigator.clipboard.writeText(checkInUrl);
-            alert('Check-in URL copied to clipboard!');
-          };
-
-          const simulateQRScan = () => {
-            if (!selectedSession) return;
-            const classStudents = students.filter(s => s.classId === selectedClass.id);
-            const randomStudent = classStudents[Math.floor(Math.random() * classStudents.length)];
-            handleStatusChange(randomStudent.id, 'Present', selectedSession.id);
-            addLog(`${randomStudent.name} checked in via QR`, 'checkin');
-          };
-
-          const classStudents = selectedClass ? students.filter(s => s.classId === selectedClass.id) : [];
-          const classSessions = selectedClass ? sessions.filter(s => s.classId === selectedClass.id) : [];
-
-          // Check if we're in student check-in mode
-          const urlParams = new URLSearchParams(window.location.search);
-          const mode = urlParams.get('mode');
-          
-          if (mode === 'checkin') {
-            return <StudentCheckIn />;
           }
 
-          if (mode === 'display') {
-            return <DisplayMode />;
-          }
+          setSubmitted(true);
+          // TODO: also POST attendance to real backend if you add one
+          setTimeout(() => {
+            window.close && window.close();
+          }, 3000);
+        } catch (err) {
+          console.error("Check-in error", err);
+          setError("Something went wrong. Please try again or tell your instructor.");
+        }
+      };
 
-          if (!isAuthenticated) {
-            return (
-              <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-6">
-                <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border-2 border-cyan-500">
-                  <div className="text-center mb-8">
-                    <Lock size={64} className="text-cyan-400 mx-auto mb-4" />
-                    <h1 className="text-3xl font-bold text-white mb-2">Admin Login</h1>
-                    <p className="text-gray-400">Enter password to access the system</p>
-                  </div>
-                  <div className="space-y-4">
+      if (submitted) {
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center p-6">
+            <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full text-center">
+              <CheckCircle size={72} className="text-emerald-500 mx-auto mb-4" />
+              <h1 className="text-3xl font-bold text-slate-800 mb-2">You&apos;re checked in!</h1>
+              <p className="text-slate-500">Your attendance has been recorded for this session.</p>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center p-6">
+          <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="text-center mb-6">
+              <UserCheck size={56} className="text-cyan-500 mx-auto mb-3" />
+              <h1 className="text-2xl font-bold text-slate-900 mb-1">Session Check-In</h1>
+              <p className="text-slate-500 text-sm">
+                Enter your info to confirm you were here.
+              </p>
+              {sessionId && (
+                <p className="text-xs text-slate-400 mt-2">Session ID: {sessionId}</p>
+              )}
+              {classId && (
+                <p className="text-xs text-slate-400">Class ID: {classId}</p>
+              )}
+            </div>
+
+            <div className="flex gap-2 mb-4">
+              <button
+                type="button"
+                onClick={() => setUseCode(true)}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium ${
+                  useCode ? "bg-cyan-500 text-white" : "bg-slate-100 text-slate-700"
+                }`}
+              >
+                Enter Rolling Code
+              </button>
+              <button
+                type="button"
+                onClick={() => setUseCode(false)}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium ${
+                  !useCode ? "bg-cyan-500 text-white" : "bg-slate-100 text-slate-700"
+                }`}
+              >
+                No Code (Demo)
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <input
+                type="text"
+                placeholder="Student ID (e.g., 123456)"
+                value={studentId}
+                onChange={(e) => setStudentId(e.target.value)}
+                className="w-full border-2 border-slate-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cyan-500"
+              />
+
+              {useCode && (
+                <input
+                  type="text"
+                  placeholder="6-digit rolling code"
+                  value={code}
+                  maxLength={6}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                  className="w-full border-2 border-slate-200 rounded-lg px-4 py-3 text-center tracking-[0.4em] text-lg font-mono focus:outline-none focus:border-cyan-500"
+                />
+              )}
+
+              {error && (
+                <p className="text-xs text-red-500">{error}</p>
+              )}
+
+              <button
+                type="button"
+                onClick={handleSubmit}
+                className="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-lg py-3 mt-2"
+              >
+                Check In
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ======== Display Mode (projector / laptop) – class-level code ========
+    function DisplayMode() {
+      const [sessionId, setSessionId] = useState("1");
+      const [classId, setClassId] = useState("1");
+      const [className, setClassName] = useState("Current Session");
+      const [intervalSeconds, setIntervalSeconds] = useState(30);
+      const [code, setCode] = useState("");
+      const [countdown, setCountdown] = useState(30);
+      const [checkInUrl, setCheckInUrl] = useState("");
+
+      useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionParam = urlParams.get("session");
+        const classParam = urlParams.get("classId");
+        const classNameParam = urlParams.get("class");
+        const intervalParam = urlParams.get("interval");
+
+        if (sessionParam) setSessionId(sessionParam);
+        if (classParam) setClassId(classParam);
+        if (classNameParam) setClassName(decodeURIComponent(classNameParam));
+        if (intervalParam) setIntervalSeconds(parseInt(intervalParam, 10) || 30);
+      }, []);
+
+      useEffect(() => {
+        const baseUrl = window.location.origin + window.location.pathname;
+        const url =
+          baseUrl +
+          "?mode=checkin&session=" +
+          encodeURIComponent(sessionId) +
+          "&classId=" +
+          encodeURIComponent(classId);
+        setCheckInUrl(url);
+      }, [sessionId, classId]);
+
+      useEffect(() => {
+        const classSecret = APP_BASE_SECRET + ":" + (classId || "default");
+
+        const updateCode = () => {
+          const newCode = generateTOTP(classSecret, intervalSeconds, 0);
+          setCode(newCode);
+          setCountdown(intervalSeconds);
+        };
+        updateCode();
+
+        const codeTimer = setInterval(updateCode, intervalSeconds * 1000);
+        return () => clearInterval(codeTimer);
+      }, [classId, intervalSeconds]);
+
+      useEffect(() => {
+        const timer = setInterval(() => {
+          setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+        }, 1000);
+        return () => clearInterval(timer);
+      }, []);
+
+      const qrSrc = checkInUrl
+        ? "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" + encodeURIComponent(checkInUrl)
+        : "";
+
+      const copyLink = () => {
+        if (!checkInUrl) return;
+        navigator.clipboard.writeText(checkInUrl);
+        alert("Check-in link copied to clipboard.");
+      };
+
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 text-white flex items-center justify-center p-6">
+          <div className="max-w-5xl w-full">
+            <header className="mb-8 text-center">
+              <h1 className="text-4xl md:text-5xl font-extrabold mb-2">Check-In Display</h1>
+              <p className="text-cyan-300 text-lg">{className}</p>
+              <p className="text-slate-400 text-sm mt-1">
+                Class ID: {classId} • Session ID: {sessionId}
+              </p>
+            </header>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-slate-900/80 border border-slate-700 rounded-2xl p-6 flex flex-col items-center">
+                <h2 className="text-xl font-semibold mb-3 flex items-center gap-2">
+                  <QrCodeIcon className="text-cyan-400" /> Scan to Open Check-In Page
+                </h2>
+                <div className="bg-white rounded-2xl p-4 mt-2">
+                  {qrSrc ? (
+                    <img src={qrSrc} alt="QR Code" className="w-64 h-64 object-contain" />
+                  ) : (
+                    <p className="text-slate-700">Generating QR...</p>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400 mt-3">
+                  Aim your phone camera at the QR code, tap the notification, then check in.
+                </p>
+                <div className="mt-4 w-full">
+                  <label className="text-xs text-slate-400 block mb-1 text-left">
+                    Direct link (for students who can&apos;t scan)
+                  </label>
+                  <div className="flex gap-2 items-center">
                     <input
-                      type="password"
-                      placeholder="Enter admin password"
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
-                      className="w-full bg-gray-700 text-white px-4 py-3 rounded-lg border border-gray-600 focus:border-cyan-500 focus:outline-none"
+                      className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200"
+                      value={checkInUrl}
+                      readOnly
                     />
                     <button
-                      onClick={handleLogin}
-                      className="w-full bg-cyan-500 hover:bg-cyan-600 text-white py-3 rounded-lg font-bold transition-all"
+                      onClick={copyLink}
+                      className="flex items-center gap-1 bg-cyan-500 hover:bg-cyan-600 px-3 py-2 rounded-lg text-xs font-semibold"
                     >
-                      Login
+                      <CopyIcon size={14} /> Copy
                     </button>
-                    <div className="text-center mt-4 space-y-1">
-                      <p className="text-gray-500 text-sm">Admin password: admin123</p>
-                      <p className="text-gray-500 text-sm">Display password: display123</p>
-                    </div>
                   </div>
                 </div>
               </div>
-            );
-          }
 
-          return (
-            <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-6">
-              <div className="max-w-7xl mx-auto">
-                <div className="mb-8">
-                  <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
-                    <div>
-                      <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3">
-                        <CheckCircle size={40} className="text-cyan-400" />
-                        Attendance System
-                      </h1>
-                      <p className="text-gray-400">Multi-class attendance tracking</p>
+              <div className="bg-slate-900/80 border border-slate-700 rounded-2xl p-6 flex flex-col justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                    <Smartphone className="text-emerald-400" /> Rolling Code (Class-Level)
+                  </h2>
+                  <p className="text-sm text-slate-400 mb-3">
+                    Students can use this 6-digit rolling code (changes every {intervalSeconds}s) with
+                    their Student ID on the check-in page.
+                  </p>
+                  <div className="bg-gradient-to-br from-emerald-500 to-teal-500 rounded-2xl p-6 text-center">
+                    <p className="text-xs uppercase tracking-widest text-emerald-100 mb-2">Current Code</p>
+                    <p className="text-5xl md:text-6xl font-extrabold tracking-[0.25em] font-mono bg-white text-slate-900 rounded-xl py-4">
+                      {code || "••••••"}
+                    </p>
+                    <div className="flex items-center justify-center gap-2 mt-4 text-emerald-100">
+                      <Clock size={18} />
+                      <span className="text-sm font-semibold">
+                        Refreshes in {countdown}s
+                      </span>
                     </div>
-                    <div className="bg-gradient-to-r from-cyan-500 to-blue-600 px-6 py-3 rounded-xl">
-                      <p className="text-white font-bold">{classes.length} Classes</p>
-                      <p className="text-cyan-100 text-sm">{students.length} Students</p>
-                    </div>
-                    <button onClick={handleLogout} className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg">
-                      <Lock size={18} />
-                      Logout
-                    </button>
-                  </div>
-
-                  <div className="flex gap-3 flex-wrap">
-                    {[
-                      { id: 'dashboard', icon: BarChart3, label: 'Dashboard' },
-                      { id: 'classes', icon: Users, label: 'Classes' },
-                      { id: 'sessions', icon: Calendar, label: 'Sessions' },
-                      { id: 'checkin', icon: UserCheck, label: 'Check-In' },
-                      { id: 'reports', icon: BarChart3, label: 'Reports' },
-                      { id: 'accounts', icon: UserPlus, label: 'Accounts' }
-                    ].map(tab => (
-                      <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                        className={`flex items-center gap-2 px-4 py-3 rounded-lg transition-all ${activeTab === tab.id ? 'bg-cyan-500 text-white shadow-lg' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}>
-                        <tab.icon size={20} />
-                        <span className="font-medium">{tab.label}</span>
-                      </button>
-                    ))}
                   </div>
                 </div>
 
-                <div className="bg-gray-900 rounded-2xl p-8 shadow-2xl">
-                  {activeTab === 'dashboard' && (
-                    <div className="space-y-6">
-                      <div className="flex justify-between items-center">
-                        <h2 className="text-3xl font-bold text-white">Dashboard</h2>
-                        <div onClick={() => setShowCalendar(true)} className="flex items-center gap-2 bg-gray-700 px-4 py-2 rounded-lg hover:bg-gray-600 cursor-pointer transition-all">
-                          <Clock size={20} className="text-cyan-400" />
-                          <span className="text-white font-mono">{currentTime.toLocaleTimeString()}</span>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div onClick={() => setActiveTab('classes')} className="bg-gradient-to-br from-cyan-500 to-blue-600 p-6 rounded-xl cursor-pointer hover:scale-105 transition-transform">
-                          <Users size={32} className="text-white mb-2" />
-                          <h3 className="text-white text-4xl font-bold">{classes.length}</h3>
-                          <p className="text-cyan-100">Total Classes</p>
-                        </div>
-                        <div onClick={() => setActiveTab('sessions')} className="bg-gradient-to-br from-green-500 to-emerald-600 p-6 rounded-xl cursor-pointer hover:scale-105 transition-transform">
-                          <CheckCircle size={32} className="text-white mb-2" />
-                          <h3 className="text-white text-4xl font-bold">{students.length}</h3>
-                          <p className="text-green-100">Total Students</p>
-                        </div>
-                        <div onClick={() => setShowCalendar(true)} className="bg-gradient-to-br from-purple-500 to-pink-600 p-6 rounded-xl cursor-pointer hover:scale-105 transition-transform">
-                          <Calendar size={32} className="text-white mb-2" />
-                          <h3 className="text-white text-4xl font-bold">{sessions.length}</h3>
-                          <p className="text-purple-100">Total Sessions</p>
-                        </div>
-                        <div onClick={() => setActiveTab('checkin')} className="bg-gradient-to-br from-orange-500 to-red-600 p-6 rounded-xl cursor-pointer hover:scale-105 transition-transform">
-                          <AlertCircle size={32} className="text-white mb-2" />
-                          <h3 className="text-white text-4xl font-bold">{sessions.filter(s => s.status === 'active').length}</h3>
-                          <p className="text-orange-100">Active Now</p>
-                        </div>
-                      </div>
-
-                      {showCalendar && (
-                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                          <div className="bg-gray-800 p-6 rounded-xl w-full max-w-4xl max-h-[80vh] overflow-y-auto">
-                            <div className="flex justify-between items-center mb-4">
-                              <h3 className="text-2xl font-bold text-white">Session Calendar</h3>
-                              <button onClick={() => setShowCalendar(false)} className="text-gray-400 hover:text-white">
-                                <X size={24} />
-                              </button>
-                            </div>
-                            <div className="space-y-4">
-                              {classes.map(cls => {
-                                const clsSessions = sessions.filter(s => s.classId === cls.id);
-                                if (clsSessions.length === 0) return null;
-                                return (
-                                  <div key={cls.id} className="bg-gray-700 p-4 rounded-lg">
-                                    <h4 className="text-xl font-bold text-white mb-3">{cls.name}</h4>
-                                    <div className="space-y-2">
-                                      {clsSessions.map(session => (
-                                        <div key={session.id} className="flex items-center justify-between bg-gray-600 p-3 rounded-lg">
-                                          <div>
-                                            <p className="text-white font-medium">{session.date}</p>
-                                            <p className="text-gray-300 text-sm">{session.startTime} - {session.endTime} • {session.location}</p>
-                                          </div>
-                                          <div className="flex items-center gap-3">
-                                            {session.autoStart && (
-                                              <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded">Auto</span>
-                                            )}
-                                            <span className={`px-3 py-1 rounded-full text-sm ${
-                                              session.status === 'active' ? 'bg-green-500/20 text-green-400' :
-                                              session.status === 'completed' ? 'bg-blue-500/20 text-blue-400' :
-                                              'bg-gray-500/20 text-gray-400'
-                                            }`}>{session.status}</span>
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                              {sessions.length === 0 && (
-                                <p className="text-gray-400 text-center py-8">No sessions scheduled</p>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="bg-gray-800 p-6 rounded-xl">
-                        <h3 className="text-xl font-bold text-white mb-4">Recent Activity</h3>
-                        <div className="space-y-2 max-h-64 overflow-y-auto">
-                          {checkInLog.slice(-8).reverse().map((log, idx) => (
-                            <div key={idx} className="text-sm bg-gray-700 p-2 rounded">
-                              <span className="text-gray-400 text-xs">{log.timestamp}</span>
-                              <p className="text-white">{log.event}</p>
-                            </div>
-                          ))}
-                          {checkInLog.length === 0 && <p className="text-gray-400 text-center py-4">No activity yet</p>}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {activeTab === 'classes' && (
-                    <div className="space-y-6">
-                      <div className="flex justify-between items-center">
-                        <h2 className="text-3xl font-bold text-white">Classes</h2>
-                        <button onClick={() => setShowAddClass(true)} className="flex items-center gap-2 bg-cyan-500 hover:bg-cyan-600 text-white px-4 py-2 rounded-lg">
-                          <Plus size={18} />
-                          Add Class
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {classes.map(cls => (
-                          <div key={cls.id} className="bg-gray-800 p-6 rounded-xl border-2 border-gray-700 hover:border-cyan-500 transition-all">
-                            <div className="flex justify-between items-start mb-4">
-                              <div>
-                                <h3 className="text-xl font-bold text-white">{cls.name}</h3>
-                                <p className="text-gray-400">{cls.code}</p>
-                              </div>
-                              <div className="flex gap-2">
-                                <button onClick={() => handleEditClass(cls)} className="text-cyan-400 hover:text-cyan-300">
-                                  <Edit size={20} />
-                                </button>
-                                <button onClick={() => handleDeleteClass(cls.id)} className="text-red-400 hover:text-red-300">
-                                  <Trash2 size={20} />
-                                </button>
-                              </div>
-                            </div>
-                            <div className="space-y-2 mt-4">
-                              <p className="text-gray-300"><span className="text-gray-500">Instructor:</span> {cls.instructor}</p>
-                              <p className="text-gray-300"><span className="text-gray-500">Students:</span> {students.filter(s => s.classId === cls.id).length}</p>
-                            </div>
-                            <button onClick={() => { setSelectedClass(cls); setActiveTab('sessions'); }}
-                              className="w-full mt-4 bg-cyan-500 hover:bg-cyan-600 text-white py-2 rounded-lg">
-                              View Details
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-
-                      {showAddClass && (
-                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                          <div className="bg-gray-800 p-6 rounded-xl w-96">
-                            <div className="flex justify-between items-center mb-4">
-                              <h3 className="text-xl font-bold text-white">Add New Class</h3>
-                              <button onClick={() => setShowAddClass(false)} className="text-gray-400 hover:text-white">
-                                <X size={24} />
-                              </button>
-                            </div>
-                            <div className="space-y-3">
-                              <input type="text" placeholder="Class Name" value={newClass.name}
-                                onChange={(e) => setNewClass({...newClass, name: e.target.value})}
-                                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600" />
-                              <input type="text" placeholder="Class Code" value={newClass.code}
-                                onChange={(e) => setNewClass({...newClass, code: e.target.value})}
-                                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600" />
-                              <input type="text" placeholder="Instructor Name" value={newClass.instructor}
-                                onChange={(e) => setNewClass({...newClass, instructor: e.target.value})}
-                                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600" />
-                              <input type="text" placeholder="Schedule" value={newClass.schedule}
-                                onChange={(e) => setNewClass({...newClass, schedule: e.target.value})}
-                                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600" />
-                              <button onClick={handleAddClass} className="w-full bg-cyan-500 hover:bg-cyan-600 text-white py-2 rounded-lg">Add Class</button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {showEditClass && editingClass && (
-                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                          <div className="bg-gray-800 p-6 rounded-xl w-96">
-                            <div className="flex justify-between items-center mb-4">
-                              <h3 className="text-xl font-bold text-white">Edit Class</h3>
-                              <button onClick={() => setShowEditClass(false)} className="text-gray-400 hover:text-white">
-                                <X size={24} />
-                              </button>
-                            </div>
-                            <div className="space-y-3">
-                              <input type="text" placeholder="Class Name" value={editingClass.name}
-                                onChange={(e) => setEditingClass({...editingClass, name: e.target.value})}
-                                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600" />
-                              <input type="text" placeholder="Class Code" value={editingClass.code}
-                                onChange={(e) => setEditingClass({...editingClass, code: e.target.value})}
-                                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600" />
-                              <input type="text" placeholder="Instructor Name" value={editingClass.instructor}
-                                onChange={(e) => setEditingClass({...editingClass, instructor: e.target.value})}
-                                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600" />
-                              <input type="text" placeholder="Schedule" value={editingClass.schedule}
-                                onChange={(e) => setEditingClass({...editingClass, schedule: e.target.value})}
-                                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600" />
-                              <button onClick={handleUpdateClass} className="w-full bg-cyan-500 hover:bg-cyan-600 text-white py-2 rounded-lg">Update Class</button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {showEditSession && editingSession && (
-                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                          <div className="bg-gray-800 p-6 rounded-xl w-96">
-                            <div className="flex justify-between items-center mb-4">
-                              <h3 className="text-xl font-bold text-white">Edit Session</h3>
-                              <button onClick={() => setShowEditSession(false)} className="text-gray-400 hover:text-white">
-                                <X size={24} />
-                              </button>
-                            </div>
-                            <div className="space-y-3">
-                              <input type="date" value={editingSession.date}
-                                onChange={(e) => setEditingSession({...editingSession, date: e.target.value})}
-                                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg" />
-                              <input type="time" value={editingSession.startTime}
-                                onChange={(e) => setEditingSession({...editingSession, startTime: e.target.value})}
-                                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg" />
-                              <input type="time" value={editingSession.endTime}
-                                onChange={(e) => setEditingSession({...editingSession, endTime: e.target.value})}
-                                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg" />
-                              <input type="text" placeholder="Location" value={editingSession.location}
-                                onChange={(e) => setEditingSession({...editingSession, location: e.target.value})}
-                                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg" />
-                              <label className="flex items-center gap-3 text-white cursor-pointer">
-                                <input 
-                                  type="checkbox" 
-                                  checked={editingSession.autoStart} 
-                                  onChange={(e) => setEditingSession({...editingSession, autoStart: e.target.checked})} 
-                                  className="w-5 h-5" 
-                                />
-                                <span>Enable automatic start/stop</span>
-                              </label>
-                              <button onClick={handleUpdateSession} className="w-full bg-cyan-500 hover:bg-cyan-600 text-white py-2 rounded-lg">Update Session</button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {activeTab === 'sessions' && selectedClass && (
-                    <div className="space-y-6">
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <h2 className="text-3xl font-bold text-white">Sessions</h2>
-                          <p className="text-gray-400">{selectedClass.name}</p>
-                        </div>
-                        <button onClick={() => setShowAddSession(true)} className="flex items-center gap-2 bg-cyan-500 hover:bg-cyan-600 text-white px-4 py-2 rounded-lg">
-                          <Plus size={18} />
-                          Add Session
-                        </button>
-                      </div>
-
-                      <div className="bg-gray-800 p-6 rounded-xl">
-                        <h3 className="text-xl font-bold text-white mb-4">Manage Students</h3>
-                        <div className="flex gap-2 mb-4">
-                          <button onClick={() => setShowAddStudent(true)} className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg">
-                            <Plus size={18} />
-                            Add Student
-                          </button>
-                          <label className="flex items-center gap-2 bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg cursor-pointer">
-                            <Upload size={18} />
-                            Upload CSV
-                            <input type="file" accept=".csv" onChange={handleUploadClassList} className="hidden" />
-                          </label>
-                        </div>
-                        <div className="space-y-2">
-                          {classStudents.map(student => (
-                            <div key={student.id} className="flex items-center justify-between bg-gray-700 p-3 rounded-lg">
-                              <div className="flex items-center gap-3">
-                                <span className="text-2xl">{student.photo}</span>
-                                <div>
-                                  <p className="text-white font-medium">{student.name}</p>
-                                  <p className="text-gray-400 text-sm">{student.studentId}</p>
-                                </div>
-                              </div>
-                              <button onClick={() => handleDeleteStudent(student.id)} className="text-red-400 hover:text-red-300">
-                                <Trash2 size={18} />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="space-y-3">
-                        {classSessions.map(session => (
-                          <div key={session.id} className="bg-gray-800 p-4 rounded-xl flex items-center justify-between">
-                            <div>
-                              <p className="text-white font-bold">{session.date}</p>
-                              <p className="text-gray-400">{session.startTime} - {session.endTime}</p>
-                              <span className={`inline-block mt-2 px-3 py-1 rounded-full text-sm ${
-                                session.status === 'active' ? 'bg-green-500/20 text-green-400' :
-                                session.status === 'completed' ? 'bg-blue-500/20 text-blue-400' :
-                                'bg-gray-500/20 text-gray-400'
-                              }`}>{session.status}</span>
-                            </div>
-                            <div>
-                              {session.status === 'scheduled' && (
-                                <button onClick={() => handleStartSession(session)} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg">
-                                  Start Session
-                                </button>
-                              )}
-                              {session.status === 'active' && (
-                                <button onClick={() => { setSelectedSession(session); setActiveTab('checkin'); }} className="bg-cyan-500 hover:bg-cyan-600 text-white px-4 py-2 rounded-lg">
-                                  Take Attendance
-                                </button>
-                              )}
-                              <button onClick={() => handleDeleteSession(session.id)} className="text-red-400 hover:text-red-300">
-                                <Trash2 size={20} />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      {showAddSession && (
-                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                          <div className="bg-gray-800 p-6 rounded-xl w-96">
-                            <div className="flex justify-between items-center mb-4">
-                              <h3 className="text-xl font-bold text-white">Add Session</h3>
-                              <button onClick={() => setShowAddSession(false)} className="text-gray-400 hover:text-white">
-                                <X size={24} />
-                              </button>
-                            </div>
-                            <div className="space-y-3">
-                              <input type="date" value={newSession.date}
-                                onChange={(e) => setNewSession({...newSession, date: e.target.value})}
-                                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg" />
-                              <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                  <label className="text-gray-400 text-sm">Start Time</label>
-                                  <input type="time" value={newSession.startTime}
-                                    onChange={(e) => setNewSession({...newSession, startTime: e.target.value})}
-                                    className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg mt-1" />
-                                </div>
-                                <div>
-                                  <label className="text-gray-400 text-sm">End Time</label>
-                                  <input type="time" value={newSession.endTime}
-                                    onChange={(e) => setNewSession({...newSession, endTime: e.target.value})}
-                                    className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg mt-1" />
-                                </div>
-                              </div>
-                              <input type="text" placeholder="Location" value={newSession.location}
-                                onChange={(e) => setNewSession({...newSession, location: e.target.value})}
-                                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg" />
-                              <label className="flex items-center gap-3 text-white cursor-pointer">
-                                <input 
-                                  type="checkbox" 
-                                  checked={newSession.autoStart} 
-                                  onChange={(e) => setNewSession({...newSession, autoStart: e.target.checked})} 
-                                  className="w-5 h-5" 
-                                />
-                                <span>Enable automatic start/stop</span>
-                              </label>
-
-                              <div className="border-t border-gray-600 pt-3">
-                                <label className="flex items-center gap-3 text-white cursor-pointer mb-3">
-                                  <input 
-                                    type="checkbox" 
-                                    checked={recurringSettings.enabled} 
-                                    onChange={(e) => setRecurringSettings({...recurringSettings, enabled: e.target.checked})} 
-                                    className="w-5 h-5" 
-                                  />
-                                  <span className="font-bold">Recurring Session</span>
-                                </label>
-
-                                {recurringSettings.enabled && (
-                                  <div className="space-y-3 bg-gray-600 p-4 rounded-lg">
-                                    <div>
-                                      <label className="text-gray-300 text-sm mb-2 block">Repeat on:</label>
-                                      <div className="grid grid-cols-7 gap-2">
-                                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => (
-                                          <button
-                                            key={idx}
-                                            type="button"
-                                            onClick={() => {
-                                              const days = recurringSettings.daysOfWeek.includes(idx)
-                                                ? recurringSettings.daysOfWeek.filter(d => d !== idx)
-                                                : [...recurringSettings.daysOfWeek, idx];
-                                              setRecurringSettings({...recurringSettings, daysOfWeek: days});
-                                            }}
-                                            className={'py-2 px-1 rounded text-xs font-bold transition-all ' + 
-                                              (recurringSettings.daysOfWeek.includes(idx) 
-                                                ? 'bg-cyan-500 text-white' 
-                                                : 'bg-gray-700 text-gray-300')}
-                                          >
-                                            {day}
-                                          </button>
-                                        ))}
-                                      </div>
-                                    </div>
-                                    <div>
-                                      <label className="text-gray-300 text-sm">Repeat until:</label>
-                                      <input 
-                                        type="date" 
-                                        value={recurringSettings.endDate}
-                                        onChange={(e) => setRecurringSettings({...recurringSettings, endDate: e.target.value})}
-                                        className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg mt-1" 
-                                      />
-                                    </div>
-                                    <p className="text-gray-300 text-xs">Sessions will be created for all selected days between start and end date</p>
-                                  </div>
-                                )}
-                              </div>
-
-                              <button onClick={handleAddSession} className="w-full bg-cyan-500 hover:bg-cyan-600 text-white py-2 rounded-lg">
-                                {recurringSettings.enabled ? 'Create Recurring Sessions' : 'Add Session'}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {showAddStudent && (
-                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                          <div className="bg-gray-800 p-6 rounded-xl w-96">
-                            <div className="flex justify-between items-center mb-4">
-                              <h3 className="text-xl font-bold text-white">Add Student</h3>
-                              <button onClick={() => setShowAddStudent(false)} className="text-gray-400 hover:text-white">
-                                <X size={24} />
-                              </button>
-                            </div>
-                            <div className="space-y-3">
-                              <input type="text" placeholder="Student Name" value={newStudent.name}
-                                onChange={(e) => setNewStudent({...newStudent, name: e.target.value})}
-                                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg" />
-                              <input type="text" placeholder="Student ID" value={newStudent.studentId}
-                                onChange={(e) => setNewStudent({...newStudent, studentId: e.target.value})}
-                                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg" />
-                              <input type="email" placeholder="Email" value={newStudent.email}
-                                onChange={(e) => setNewStudent({...newStudent, email: e.target.value})}
-                                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg" />
-                              <button onClick={handleAddStudent} className="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg">Add Student</button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {activeTab === 'checkin' && (
-                    <div className="space-y-6">
-                      <h2 className="text-3xl font-bold text-white">Check-In</h2>
-                      
-                      {!selectedSession ? (
-                        <div className="text-center py-12">
-                          <AlertCircle size={64} className="text-gray-600 mx-auto mb-4" />
-                          <p className="text-gray-400">No active session. Start a session from the Sessions tab.</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-6">
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {[
-                              { mode: 'qr', icon: QrCode, label: 'QR Code', color: 'cyan' },
-                              { mode: 'nfc', icon: Smartphone, label: 'NFC', color: 'purple' },
-                              { mode: 'manual', icon: UserCheck, label: 'Manual', color: 'green' }
-                            ].map(({ mode, icon: Icon, label }) => (
-                              <button key={mode} onClick={() => setAttendanceMode(mode)}
-                                className={`p-6 rounded-xl border-2 transition-all ${attendanceMode === mode ? 'border-cyan-500 bg-cyan-500/10' : 'border-gray-700 bg-gray-800'}`}>
-                                <Icon size={48} className="text-cyan-400 mb-3 mx-auto" />
-                                <h3 className="text-white font-bold">{label}</h3>
-                              </button>
-                            ))}
-                          </div>
-
-                          <div className="bg-gray-800 p-6 rounded-xl">
-                            {attendanceMode === 'qr' && (
-                              <div className="text-center py-8">
-                                {!showQRCode ? (
-                                  <button onClick={handleQRCheckIn} className="px-8 py-4 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg font-bold">
-                                    Generate QR Code
-                                  </button>
-                                ) : (
-                                  <div>
-                                    <img src={generateQRCode(qrCodeData)} alt="QR Code" className="w-64 h-64 mx-auto mb-4 bg-white p-4 rounded-xl" />
-                                    <p className="text-gray-400 mb-2">Students scan this QR code to check in</p>
-                                    <p className="text-cyan-400 text-sm mb-4">Session: {selectedSession.date}</p>
-                                    
-                                    <div className="bg-gray-700 p-4 rounded-lg mb-4">
-                                      <div className="flex items-center gap-2 mb-2">
-                                        <Link size={16} className="text-cyan-400" />
-                                        <p className="text-white text-sm font-medium">Check-in URL:</p>
-                                      </div>
-                                      <div className="flex gap-2">
-                                        <input 
-                                          type="text" 
-                                          value={checkInUrl} 
-                                          readOnly 
-                                          className="flex-1 bg-gray-600 text-gray-300 px-3 py-2 rounded text-sm"
-                                        />
-                                        <button 
-                                          onClick={copyCheckInUrl}
-                                          className="bg-cyan-500 hover:bg-cyan-600 text-white px-4 py-2 rounded flex items-center gap-2"
-                                        >
-                                          <Copy size={16} />
-                                          Copy
-                                        </button>
-                                      </div>
-                                    </div>
-
-                                    <div className="bg-gray-700 p-4 rounded-lg mb-4">
-                                      <div className="flex items-center gap-2 mb-2">
-                                        <Smartphone size={16} className="text-purple-400" />
-                                        <p className="text-white text-sm font-medium">Display Mode URL:</p>
-                                      </div>
-                                      <div className="flex gap-2 mb-2">
-                                        <input 
-                                          type="text" 
-                                          value={displayUrl} 
-                                          readOnly 
-                                          className="flex-1 bg-gray-600 text-gray-300 px-3 py-2 rounded text-sm"
-                                        />
-                                        <button 
-                                          onClick={copyDisplayUrl}
-                                          className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded flex items-center gap-2"
-                                        >
-                                          <Copy size={16} />
-                                          Copy
-                                        </button>
-                                      </div>
-                                      <button 
-                                        onClick={openDisplayMode}
-                                        className="w-full bg-purple-500 hover:bg-purple-600 text-white py-2 rounded flex items-center justify-center gap-2"
-                                      >
-                                        <Smartphone size={16} />
-                                        Open Display Mode
-                                      </button>
-                                      <p className="text-gray-400 text-xs mt-2">Shows QR code and rolling code for laptops/tablets/phones</p>
-                                    </div>
-
-                                    <div className="bg-gray-700 p-4 rounded-lg mb-4">
-                                      <div className="flex items-center gap-2 mb-3">
-                                        <Clock size={16} className="text-purple-400" />
-                                        <p className="text-white text-sm font-medium">Code Refresh Interval:</p>
-                                      </div>
-                                      <select 
-                                        value={codeRefreshInterval}
-                                        onChange={(e) => setCodeRefreshInterval(parseInt(e.target.value))}
-                                        className="w-full bg-gray-600 text-white px-4 py-2 rounded-lg"
-                                      >
-                                        <option value="15">15 seconds</option>
-                                        <option value="30">30 seconds</option>
-                                        <option value="60">60 seconds</option>
-                                        <option value="120">2 minutes</option>
-                                        <option value="300">5 minutes</option>
-                                      </select>
-                                      <p className="text-gray-400 text-xs mt-2">How often codes change in display mode</p>
-                                    </div>
-
-                                    <div className="flex gap-3 justify-center">
-                                      <button onClick={simulateQRScan} className="px-6 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg">
-                                        Simulate Scan
-                                      </button>
-                                      <button onClick={() => setShowQRCode(false)} className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg">
-                                        Close
-                                      </button>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            {attendanceMode === 'nfc' && (
-                              <div className="text-center py-8">
-                                <Smartphone size={120} className={`mx-auto mb-4 ${nfcListening ? 'text-purple-400 animate-pulse' : 'text-gray-600'}`} />
-                                <h4 className="text-white text-xl font-bold mb-4">{nfcListening ? 'Listening...' : 'NFC Standby'}</h4>
-                                <button onClick={() => setNfcListening(true)} disabled={nfcListening}
-                                  className="px-8 py-4 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-600 text-white rounded-lg font-bold">
-                                  Activate NFC
-                                </button>
-                              </div>
-                            )}
-
-                            {attendanceMode === 'manual' && (
-                              <div className="space-y-3">
-                                {classStudents.map((student) => {
-                                  const studentAttendance = attendance.find(a => a.sessionId === selectedSession.id && a.studentId === student.id);
-                                  return (
-                                    <div key={student.id} className="flex items-center justify-between bg-gray-700 p-4 rounded-lg">
-                                      <div className="flex items-center gap-3">
-                                        <span className="text-3xl">{student.photo}</span>
-                                        <div>
-                                          <p className="text-white font-medium">{student.name}</p>
-                                          <p className="text-gray-400 text-sm">{student.studentId}</p>
-                                        </div>
-                                        {studentAttendance && (
-                                          <span className={`ml-4 px-3 py-1 rounded-full text-sm ${
-                                            studentAttendance.status === 'Present' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                                          }`}>{studentAttendance.status}</span>
-                                        )}
-                                      </div>
-                                      <div className="flex gap-2">
-                                        <button onClick={() => handleStatusChange(student.id, 'Present', selectedSession.id)} 
-                                          className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg">Present</button>
-                                        <button onClick={() => handleStatusChange(student.id, 'Absent', selectedSession.id)}
-                                          className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg">Absent</button>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {activeTab === 'accounts' && (
-                    <div className="space-y-6">
-                      <div className="flex justify-between items-center">
-                        <h2 className="text-3xl font-bold text-white">Account Management</h2>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="bg-gray-800 p-6 rounded-xl">
-                          <h3 className="text-xl font-bold text-white mb-4">Create New Account</h3>
-                          <div className="space-y-3">
-                            <input type="text" placeholder="Full Name" value={newAccount.name}
-                              onChange={(e) => setNewAccount({...newAccount, name: e.target.value})}
-                              className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600" />
-                            <input type="text" placeholder="Username" value={newAccount.username}
-                              onChange={(e) => setNewAccount({...newAccount, username: e.target.value})}
-                              className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600" />
-                            <input type="password" placeholder="Password" value={newAccount.password}
-                              onChange={(e) => setNewAccount({...newAccount, password: e.target.value})}
-                              className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600" />
-                            <select value={newAccount.role}
-                              onChange={(e) => setNewAccount({...newAccount, role: e.target.value})}
-                              className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600">
-                              <option value="instructor">Instructor</option>
-                              <option value="admin">Administrator</option>
-                              <option value="display">Display Only</option>
-                            </select>
-                            <button onClick={handleAddAccount} className="w-full bg-cyan-500 hover:bg-cyan-600 text-white py-3 rounded-lg font-bold">
-                              <div className="flex items-center justify-center gap-2">
-                                <UserPlus size={20} />
-                                Create Account
-                              </div>
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="bg-gray-800 p-6 rounded-xl">
-                          <h3 className="text-xl font-bold text-white mb-4">Account Roles</h3>
-                          <div className="space-y-3 text-gray-300">
-                            <div className="bg-gray-700 p-3 rounded-lg">
-                              <p className="font-bold text-cyan-400">Administrator</p>
-                              <p className="text-sm">Full access to all features, can manage accounts</p>
-                            </div>
-                            <div className="bg-gray-700 p-3 rounded-lg">
-                              <p className="font-bold text-green-400">Instructor</p>
-                              <p className="text-sm">Manage classes, take attendance, view reports</p>
-                            </div>
-                            <div className="bg-gray-700 p-3 rounded-lg">
-                              <p className="font-bold text-purple-400">Display Only</p>
-                              <p className="text-sm">Shows QR code and rolling code for student check-in</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="bg-gray-800 p-6 rounded-xl">
-                        <h3 className="text-xl font-bold text-white mb-4">Existing Accounts</h3>
-                        <div className="space-y-2">
-                          {accounts.map(account => (
-                            <div key={account.id} className="flex items-center justify-between bg-gray-700 p-4 rounded-lg">
-                              <div>
-                                <p className="text-white font-medium">{account.name}</p>
-                                <p className="text-gray-400 text-sm">@{account.username} • {account.role}</p>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <span className={'px-3 py-1 rounded-full text-xs font-bold ' + (
-                                  account.role === 'admin' ? 'bg-cyan-500/20 text-cyan-400' :
-                                  account.role === 'instructor' ? 'bg-green-500/20 text-green-400' :
-                                  'bg-purple-500/20 text-purple-400'
-                                )}>{account.role}</span>
-                                {account.id !== 1 && (
-                                  <button onClick={() => handleDeleteAccount(account.id)} className="text-red-400 hover:text-red-300">
-                                    <Trash2 size={18} />
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {activeTab === 'reports' && (
-                    <div className="space-y-6">
-                      <h2 className="text-3xl font-bold text-white">Reports & Analytics</h2>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {classes.map(cls => {
-                          const clsStudents = students.filter(s => s.classId === cls.id);
-                          const clsSessions = sessions.filter(s => s.classId === cls.id);
-                          const completedSessions = clsSessions.filter(s => s.status === 'completed');
-                          const totalAttendance = attendance.filter(a => {
-                            const session = sessions.find(s => s.id === a.sessionId);
-                            return session && session.classId === cls.id;
-                          });
-                          const presentCount = totalAttendance.filter(a => a.status === 'Present' || a.status === 'Late').length;
-                          const attendanceRate = totalAttendance.length > 0 ? Math.round((presentCount / totalAttendance.length) * 100) : 0;
-
-                          return (
-                            <div key={cls.id} className="bg-gray-800 p-6 rounded-xl border-2 border-gray-700 hover:border-cyan-500 transition-all cursor-pointer"
-                              onClick={() => { setSelectedClass(cls); setActiveTab('class-report'); }}>
-                              <h3 className="text-xl font-bold text-white mb-4">{cls.name}</h3>
-                              <div className="space-y-2">
-                                <div className="flex justify-between">
-                                  <span className="text-gray-400">Students:</span>
-                                  <span className="text-white font-bold">{clsStudents.length}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-400">Sessions:</span>
-                                  <span className="text-white font-bold">{clsSessions.length}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-400">Completed:</span>
-                                  <span className="text-white font-bold">{completedSessions.length}</span>
-                                </div>
-                                <div className="flex justify-between pt-2 border-t border-gray-700">
-                                  <span className="text-gray-400">Attendance Rate:</span>
-                                  <span className="text-cyan-400 font-bold text-xl">{attendanceRate}%</span>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {activeTab === 'class-report' && selectedClass && (
-                    <div className="space-y-6">
-                      <div className="flex items-center gap-4 mb-4">
-                        <button onClick={() => setActiveTab('reports')} className="text-cyan-400 hover:text-cyan-300">
-                          ← Back to Reports
-                        </button>
-                        <h2 className="text-3xl font-bold text-white">{selectedClass.name} - Detailed Report</h2>
-                      </div>
-
-                      <div className="bg-gray-800 p-6 rounded-xl">
-                        <h3 className="text-xl font-bold text-white mb-4">Session Summary</h3>
-                        <div className="space-y-2">
-                          {sessions.filter(s => s.classId === selectedClass.id).map(session => {
-                            const sessionAttendance = attendance.filter(a => a.sessionId === session.id);
-                            const presentCount = sessionAttendance.filter(a => a.status === 'Present' || a.status === 'Late').length;
-                            const absentCount = sessionAttendance.filter(a => a.status === 'Absent').length;
-                            const totalStudents = students.filter(s => s.classId === selectedClass.id).length;
-                            const attendanceRate = totalStudents > 0 ? Math.round((presentCount / totalStudents) * 100) : 0;
-
-                            return (
-                              <div key={session.id} className="bg-gray-700 p-4 rounded-lg">
-                                <div className="flex justify-between items-start">
-                                  <div>
-                                    <p className="text-white font-bold">{session.date}</p>
-                                    <p className="text-gray-400 text-sm">{session.startTime} - {session.endTime}</p>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className="text-green-400 font-bold">{presentCount} Present</p>
-                                    <p className="text-red-400 text-sm">{absentCount} Absent</p>
-                                    <p className="text-cyan-400 font-bold mt-1">{attendanceRate}%</p>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      <div className="bg-gray-800 p-6 rounded-xl">
-                        <h3 className="text-xl font-bold text-white mb-4">Student Summary</h3>
-                        <div className="overflow-x-auto">
-                          <table className="w-full">
-                            <thead>
-                              <tr className="border-b border-gray-700">
-                                <th className="text-left text-cyan-400 py-3 px-4">Student</th>
-                                <th className="text-left text-cyan-400 py-3 px-4">Total Sessions</th>
-                                <th className="text-left text-cyan-400 py-3 px-4">Present</th>
-                                <th className="text-left text-cyan-400 py-3 px-4">Absent</th>
-                                <th className="text-left text-cyan-400 py-3 px-4">Rate</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {students.filter(s => s.classId === selectedClass.id).map(student => {
-                                const studentAttendance = attendance.filter(a => a.studentId === student.id);
-                                const presentCount = studentAttendance.filter(a => a.status === 'Present' || a.status === 'Late').length;
-                                const absentCount = studentAttendance.filter(a => a.status === 'Absent').length;
-                                const totalSessions = sessions.filter(s => s.classId === selectedClass.id && s.status === 'completed').length;
-                                const rate = totalSessions > 0 ? Math.round((presentCount / totalSessions) * 100) : 0;
-
-                                return (
-                                  <tr key={student.id} className="border-b border-gray-700">
-                                    <td className="py-3 px-4">
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-2xl">{student.photo}</span>
-                                        <span className="text-white">{student.name}</span>
-                                      </div>
-                                    </td>
-                                    <td className="py-3 px-4 text-gray-300">{totalSessions}</td>
-                                    <td className="py-3 px-4 text-green-400 font-bold">{presentCount}</td>
-                                    <td className="py-3 px-4 text-red-400 font-bold">{absentCount}</td>
-                                    <td className="py-3 px-4">
-                                      <span className={'font-bold ' + (rate >= 80 ? 'text-green-400' : rate >= 60 ? 'text-yellow-400' : 'text-red-400')}>
-                                        {rate}%
-                                      </span>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                    <div className="space-y-6">
-                      <div className="flex justify-between items-center">
-                        <h2 className="text-3xl font-bold text-white">Account Management</h2>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="bg-gray-800 p-6 rounded-xl">
-                          <h3 className="text-xl font-bold text-white mb-4">Create New Account</h3>
-                          <div className="space-y-3">
-                            <input type="text" placeholder="Full Name" value={newAccount.name}
-                              onChange={(e) => setNewAccount({...newAccount, name: e.target.value})}
-                              className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600" />
-                            <input type="text" placeholder="Username" value={newAccount.username}
-                              onChange={(e) => setNewAccount({...newAccount, username: e.target.value})}
-                              className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600" />
-                            <input type="password" placeholder="Password" value={newAccount.password}
-                              onChange={(e) => setNewAccount({...newAccount, password: e.target.value})}
-                              className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600" />
-                            <select value={newAccount.role}
-                              onChange={(e) => setNewAccount({...newAccount, role: e.target.value})}
-                              className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600">
-                              <option value="instructor">Instructor</option>
-                              <option value="admin">Administrator</option>
-                              <option value="display">Display Only</option>
-                            </select>
-                            <button onClick={handleAddAccount} className="w-full bg-cyan-500 hover:bg-cyan-600 text-white py-3 rounded-lg font-bold">
-                              <div className="flex items-center justify-center gap-2">
-                                <UserPlus size={20} />
-                                Create Account
-                              </div>
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="bg-gray-800 p-6 rounded-xl">
-                          <h3 className="text-xl font-bold text-white mb-4">Account Roles</h3>
-                          <div className="space-y-3 text-gray-300">
-                            <div className="bg-gray-700 p-3 rounded-lg">
-                              <p className="font-bold text-cyan-400">Administrator</p>
-                              <p className="text-sm">Full access to all features, can manage accounts</p>
-                            </div>
-                            <div className="bg-gray-700 p-3 rounded-lg">
-                              <p className="font-bold text-green-400">Instructor</p>
-                              <p className="text-sm">Manage classes, take attendance, view reports</p>
-                            </div>
-                            <div className="bg-gray-700 p-3 rounded-lg">
-                              <p className="font-bold text-purple-400">Display Only</p>
-                              <p className="text-sm">Shows QR code and rolling code for student check-in</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="bg-gray-800 p-6 rounded-xl">
-                        <h3 className="text-xl font-bold text-white mb-4">Existing Accounts</h3>
-                        <div className="space-y-2">
-                          {accounts.map(account => (
-                            <div key={account.id} className="flex items-center justify-between bg-gray-700 p-4 rounded-lg">
-                              <div>
-                                <p className="text-white font-medium">{account.name}</p>
-                                <p className="text-gray-400 text-sm">@{account.username} • {account.role}</p>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <span className={'px-3 py-1 rounded-full text-xs font-bold ' + (
-                                  account.role === 'admin' ? 'bg-cyan-500/20 text-cyan-400' :
-                                  account.role === 'instructor' ? 'bg-green-500/20 text-green-400' :
-                                  'bg-purple-500/20 text-purple-400'
-                                )}>{account.role}</span>
-                                {account.id !== 1 && (
-                                  <button onClick={() => handleDeleteAccount(account.id)} className="text-red-400 hover:text-red-300">
-                                    <Trash2 size={18} />
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                <div className="mt-6">
+                  <label className="block text-xs text-slate-400 mb-1">
+                    Code interval (seconds)
+                  </label>
+                  <select
+                    className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                    value={intervalSeconds}
+                    onChange={(e) => setIntervalSeconds(parseInt(e.target.value, 10))}
+                  >
+                    <option value={15}>15 seconds</option>
+                    <option value={30}>30 seconds</option>
+                    <option value={60}>60 seconds</option>
+                  </select>
                 </div>
               </div>
             </div>
-          );
-        };
+          </div>
+        </div>
+      );
+    }
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<ProAttendanceSystem />);
-    </script>
+    // ======== Main Admin / Instructor App (simplified) ========
+    function ProAttendanceSystem() {
+      const [activeTab, setActiveTab] = useState("dashboard");
+      const [isAuthenticated, setIsAuthenticated] = useState(false);
+      const [loginUsername, setLoginUsername] = useState("");
+      const [loginPassword, setLoginPassword] = useState("");
+      const [currentTime, setCurrentTime] = useState(new Date());
+
+      const [accounts, setAccounts] = useState([
+        { id: 1, username: "admin",   password: "admin123",   role: "admin",   name: "Administrator" },
+        { id: 2, username: "display", password: "display123", role: "display", name: "Display Mode" }
+      ]);
+
+      const [newAccount, setNewAccount] = useState({
+        name: "",
+        username: "",
+        password: "",
+        role: "instructor",
+      });
+
+      const [classes, setClasses] = useState([
+        { id: 1, name: "Intro to Theatre", code: "THE101" },
+        { id: 2, name: "Stagecraft", code: "THE249" }
+      ]);
+
+      const [students, setStudents] = useState([
+        { id: 1, classId: 1, name: "Student One", studentId: "S001" },
+        { id: 2, classId: 1, name: "Student Two", studentId: "S002" },
+        { id: 3, classId: 2, name: "Tech Student", studentId: "T249" }
+      ]);
+
+      const [selectedClassId, setSelectedClassId] = useState(1);
+      const [checkInSessionId, setCheckInSessionId] = useState("1");
+      const [checkInDisplayUrl, setCheckInDisplayUrl] = useState("");
+
+      const [log, setLog] = useState([]);
+
+      useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+        return () => clearInterval(timer);
+      }, []);
+
+      const addLog = (event, type = "info") => {
+        setLog((prev) => [
+          { id: prev.length + 1, time: new Date().toLocaleString(), event, type },
+          ...prev.slice(0, 99),
+        ]);
+      };
+
+      const handleLogin = () => {
+        const account = accounts.find(
+          (acc) => acc.username === loginUsername && acc.password === loginPassword
+        );
+        if (!account) {
+          alert("Incorrect username or password.");
+          return;
+        }
+        if (account.role === "display") {
+          const baseUrl = window.location.origin + window.location.pathname;
+          const url =
+            baseUrl +
+            "?mode=display&session=1&classId=1&class=" +
+            encodeURIComponent("Current Session") +
+            "&interval=30";
+          window.location.href = url;
+          return;
+        }
+        setIsAuthenticated(true);
+        setActiveTab("dashboard");
+        addLog(account.name + " logged in", "auth");
+      };
+
+      const handleLogout = () => {
+        setIsAuthenticated(false);
+        setLoginUsername("");
+        setLoginPassword("");
+        addLog("User logged out", "auth");
+      };
+
+      const handleAddAccount = () => {
+        if (!newAccount.name || !newAccount.username || !newAccount.password) {
+          alert("Please fill in name, username, and password.");
+          return;
+        }
+        const id =
+          accounts.length > 0 ? Math.max(...accounts.map((a) => a.id)) + 1 : 1;
+        const account = { ...newAccount, id };
+        setAccounts((prev) => [...prev, account]);
+        addLog(`Created account @${newAccount.username} (${newAccount.role})`, "account");
+        setNewAccount({
+          name: "",
+          username: "",
+          password: "",
+          role: "instructor",
+        });
+      };
+
+      const handleDeleteAccount = (id) => {
+        if (id === 1) {
+          alert("You cannot delete the main admin account.");
+          return;
+        }
+        if (!confirm("Delete this account?")) return;
+        setAccounts((prev) => prev.filter((a) => a.id !== id));
+        addLog("Deleted account " + id, "account");
+      };
+
+      const handleDeleteStudent = (studentId) => {
+        if (!confirm("Delete this student?")) return;
+        setStudents((prev) => prev.filter((s) => s.id !== studentId));
+        addLog("Deleted student " + studentId, "student");
+      };
+
+      function generateRandomSecret(length = 32) {
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        let s = "";
+        for (let i = 0; i < length; i++) {
+          s += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return s;
+      }
+
+      async function assignStudentSecret(student) {
+        try {
+          const secret = generateRandomSecret();
+          await db.collection("students").doc(student.studentId).set({
+            studentId: student.studentId,
+            name: student.name,
+            classId: student.classId,
+            totpSecret: secret,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          addLog(`Assigned TOTP secret to ${student.name} (${student.studentId})`, "student");
+          alert(
+            `Secret assigned for ${student.name}. You can now help them pair their authenticator app or use the student app.`
+          );
+        } catch (err) {
+          console.error("Error assigning secret", err);
+          alert("Error assigning secret. See console for details.");
+        }
+      }
+
+      const generateDisplayUrl = () => {
+        const cls = classes.find((c) => c.id === selectedClassId);
+        const baseUrl = window.location.origin + window.location.pathname;
+        const url =
+          baseUrl +
+          "?mode=display&session=" +
+          encodeURIComponent(checkInSessionId) +
+          "&classId=" +
+          encodeURIComponent(selectedClassId) +
+          "&class=" +
+          encodeURIComponent(cls ? cls.name : "Class " + selectedClassId) +
+          "&interval=30";
+        setCheckInDisplayUrl(url);
+      };
+
+      // --- Mode routing (URL decides student vs display vs admin) ---
+      const urlParams = new URLSearchParams(window.location.search);
+      const mode = urlParams.get("mode");
+      if (mode === "checkin") return <StudentCheckIn />;
+      if (mode === "display") return <DisplayMode />;
+
+      // --- Login screen ---
+      if (!isAuthenticated) {
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 flex items-center justify-center p-6">
+            <div className="bg-slate-900 border border-slate-700 rounded-2xl p-8 w-full max-w-md shadow-2xl">
+              <div className="text-center mb-8">
+                <Lock size={56} className="text-cyan-400 mx-auto mb-4" />
+                <h1 className="text-2xl font-bold text-white mb-1">Sign In</h1>
+                <p className="text-slate-400 text-sm">
+                  Use your instructor or admin account to access the dashboard.
+                </p>
+              </div>
+              <div className="space-y-4">
+                <input
+                  type="text"
+                  placeholder="Username"
+                  value={loginUsername}
+                  onChange={(e) => setLoginUsername(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-sm text-slate-100 focus:outline-none focus:border-cyan-500"
+                />
+                <input
+                  type="password"
+                  placeholder="Password"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-sm text-slate-100 focus:outline-none focus:border-cyan-500"
+                />
+                <button
+                  onClick={handleLogin}
+                  className="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-lg py-3 text-sm"
+                >
+                  Login
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // --- Authenticated layout ---
+      const selectedClass = classes.find((c) => c.id === selectedClassId);
+      const classStudents = students.filter((s) => s.classId === selectedClassId);
+
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 text-white p-6">
+          <div className="max-w-6xl mx-auto space-y-6">
+            <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-bold flex items-center gap-2">
+                  <CheckCircle className="text-cyan-400" /> Attendance System (TOTP v3)
+                </h1>
+                <p className="text-slate-400 text-sm">
+                  Multi-class dashboard with per-student rolling-code verification.
+                </p>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-right">
+                  <p className="text-xs text-slate-400">Current Time</p>
+                  <p className="text-sm font-mono">
+                    {currentTime.toLocaleTimeString()}
+                  </p>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold px-4 py-2 rounded-lg"
+                >
+                  <Lock size={16} /> Logout
+                </button>
+              </div>
+            </header>
+
+            <nav className="flex flex-wrap gap-2">
+              {[
+                { id: "dashboard", label: "Dashboard" },
+                { id: "checkin", label: "Check-In Tools" },
+                { id: "students", label: "Students" },
+                { id: "accounts", label: "Accounts" },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={
+                    "px-4 py-2 text-sm rounded-lg border " +
+                    (activeTab === tab.id
+                      ? "bg-cyan-500 border-cyan-500 text-white"
+                      : "bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800")
+                  }
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+
+            <main className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+              {activeTab === "dashboard" && (
+                <div className="space-y-6">
+                  <h2 className="text-xl font-semibold mb-2 flex items-center gap-2">
+                    <Users className="text-cyan-400" /> Overview
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-slate-800 rounded-xl p-4">
+                      <p className="text-xs text-slate-400 mb-1">Classes</p>
+                      <p className="text-3xl font-bold">{classes.length}</p>
+                    </div>
+                    <div className="bg-slate-800 rounded-xl p-4">
+                      <p className="text-xs text-slate-400 mb-1">Students</p>
+                      <p className="text-3xl font-bold">{students.length}</p>
+                    </div>
+                    <div className="bg-slate-800 rounded-xl p-4">
+                      <p className="text-xs text-slate-400 mb-1">Accounts</p>
+                      <p className="text-3xl font-bold">{accounts.length}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <h3 className="text-sm font-semibold text-slate-300 mb-2">Recent Activity</h3>
+                    <div className="max-h-48 overflow-y-auto space-y-1 text-xs">
+                      {log.length === 0 && (
+                        <p className="text-slate-500">No activity yet.</p>
+                      )}
+                      {log.map((entry) => (
+                        <div
+                          key={entry.id}
+                          className="bg-slate-800 rounded px-3 py-2 flex justify-between gap-2"
+                        >
+                          <span className="text-slate-400">{entry.time}</span>
+                          <span className="text-slate-100">{entry.event}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "checkin" && (
+                <div className="space-y-6">
+                  <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                    <UserCheck className="text-cyan-400" /> Check-In Tools
+                  </h2>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-slate-800 rounded-xl p-4 space-y-4">
+                      <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                        <Calendar className="text-cyan-400" /> Session Setup
+                      </h3>
+                      <label className="block text-xs text-slate-400 mb-1">
+                        Class
+                      </label>
+                      <select
+                        value={selectedClassId}
+                        onChange={(e) => setSelectedClassId(parseInt(e.target.value, 10))}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                      >
+                        {classes.map((cls) => (
+                          <option key={cls.id} value={cls.id}>
+                            {cls.name} ({cls.code})
+                          </option>
+                        ))}
+                      </select>
+                      <label className="block text-xs text-slate-400 mb-1 mt-3">
+                        Session ID
+                      </label>
+                      <input
+                        type="text"
+                        value={checkInSessionId}
+                        onChange={(e) => setCheckInSessionId(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                      />
+                      <button
+                        onClick={generateDisplayUrl}
+                        className="mt-2 bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-semibold px-4 py-2 rounded-lg"
+                      >
+                        Generate Display URL
+                      </button>
+
+                      {checkInDisplayUrl && (
+                        <div className="mt-4 text-xs">
+                          <p className="text-slate-400 mb-1">Display Mode URL:</p>
+                          <div className="flex gap-2">
+                            <input
+                              className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200"
+                              value={checkInDisplayUrl}
+                              readOnly
+                            />
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(checkInDisplayUrl);
+                                alert("Display URL copied.");
+                              }}
+                              className="bg-slate-700 hover:bg-slate-600 rounded-lg px-3 py-2"
+                            >
+                              <CopyIcon size={14} />
+                            </button>
+                          </div>
+                          <p className="mt-2 text-slate-500">
+                            Open this on a laptop/projector to show QR + rolling code.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="bg-slate-800 rounded-xl p-4 space-y-3">
+                      <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                        <Smartphone className="text-emerald-400" /> Student App (GitHub / PWA)
+                      </h3>
+                      <p className="text-xs text-slate-300">
+                        When you publish this repo to GitHub Pages, students can open{" "}
+                        <span className="font-mono bg-slate-900 px-1 py-0.5 rounded">
+                          /student-app.html
+                        </span>{" "}
+                        in their mobile browser and &quot;Add to Home Screen&quot; to install a
+                        lightweight app.
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        The app uses each student&apos;s assigned TOTP secret from Firestore to
+                        generate a personal rolling code that the check-in page verifies.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "students" && (
+                <div className="space-y-6">
+                  <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                    <Users className="text-cyan-400" /> Students
+                  </h2>
+                  <div className="bg-slate-800 rounded-xl p-4 space-y-3">
+                    <label className="block text-xs text-slate-400 mb-1">
+                      Filter by class
+                    </label>
+                    <select
+                      value={selectedClassId}
+                      onChange={(e) => setSelectedClassId(parseInt(e.target.value, 10))}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm mb-4"
+                    >
+                      {classes.map((cls) => (
+                        <option key={cls.id} value={cls.id}>
+                          {cls.name} ({cls.code})
+                        </option>
+                      ))}
+                    </select>
+
+                    <div className="space-y-2">
+                      {classStudents.map((student) => (
+                        <div
+                          key={student.id}
+                          className="flex items-center justify-between bg-slate-900 rounded-lg px-3 py-2"
+                        >
+                          <div>
+                            <p className="font-semibold">{student.name}</p>
+                            <p className="text-xs text-slate-400">
+                              ID: {student.studentId} • Class ID: {student.classId}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => assignStudentSecret(student)}
+                              className="px-3 py-1 text-xs bg-emerald-500 hover:bg-emerald-600 rounded-lg text-white"
+                            >
+                              Generate Secret
+                            </button>
+                            <button
+                              onClick={() => handleDeleteStudent(student.id)}
+                              className="text-red-400 hover:text-red-300"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      {classStudents.length === 0 && (
+                        <p className="text-xs text-slate-500">
+                          No students in this class yet.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "accounts" && (
+                <div className="space-y-6">
+                  <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                    <Lock className="text-cyan-400" /> Account Management
+                  </h2>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-slate-800 rounded-xl p-4 space-y-3">
+                      <h3 className="text-sm font-semibold mb-2">Create New Account</h3>
+                      <input
+                        type="text"
+                        placeholder="Full name"
+                        value={newAccount.name}
+                        onChange={(e) =>
+                          setNewAccount({ ...newAccount, name: e.target.value })
+                        }
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Username"
+                        value={newAccount.username}
+                        onChange={(e) =>
+                          setNewAccount({ ...newAccount, username: e.target.value })
+                        }
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                      />
+                      <input
+                        type="password"
+                        placeholder="Password"
+                        value={newAccount.password}
+                        onChange={(e) =>
+                          setNewAccount({ ...newAccount, password: e.target.value })
+                        }
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                      />
+                      <select
+                        value={newAccount.role}
+                        onChange={(e) =>
+                          setNewAccount({ ...newAccount, role: e.target.value })
+                        }
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                      >
+                        <option value="instructor">Instructor</option>
+                        <option value="admin">Administrator</option>
+                        <option value="display">Display Only</option>
+                      </select>
+                      <button
+                        onClick={handleAddAccount}
+                        className="w-full bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-semibold py-2 rounded-lg mt-2"
+                      >
+                        Create Account
+                      </button>
+                    </div>
+
+                    <div className="bg-slate-800 rounded-xl p-4 space-y-3">
+                      <h3 className="text-sm font-semibold mb-2">Existing Accounts</h3>
+                      <div className="space-y-2 max-h-64 overflow-y-auto text-sm">
+                        {accounts.map((acc) => (
+                          <div
+                            key={acc.id}
+                            className="flex items-center justify-between bg-slate-900 rounded-lg px-3 py-2"
+                          >
+                            <div>
+                              <p className="font-semibold">{acc.name}</p>
+                              <p className="text-xs text-slate-400">
+                                @{acc.username} • {acc.role}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={
+                                  "px-2 py-1 rounded-full text-xs " +
+                                  (acc.role === "admin"
+                                    ? "bg-cyan-500/20 text-cyan-300"
+                                    : acc.role === "display"
+                                    ? "bg-purple-500/20 text-purple-300"
+                                    : "bg-emerald-500/20 text-emerald-300")
+                                }
+                              >
+                                {acc.role}
+                              </span>
+                              {acc.id !== 1 && (
+                                <button
+                                  onClick={() => handleDeleteAccount(acc.id)}
+                                  className="text-red-400 hover:text-red-300"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+            </main>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<ProAttendanceSystem />);
+  </script>
 </body>
 </html>
