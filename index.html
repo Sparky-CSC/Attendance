@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Attendance Management System - TOTP v3</title>
+  <!-- React & Babel -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Firebase compat SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <meta name="theme-color" content="#0f172a" />
+</head>
+<body class="bg-slate-900">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // ======== Firebase init (REPLACE CONFIG) ========
+    const firebaseConfig = {
+      // TODO: FILL IN YOUR FIREBASE CONFIG FROM THE CONSOLE
+      // apiKey: "YOUR_API_KEY",
+      // authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      // projectId: "YOUR_PROJECT_ID",
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // ======== Shared TOTP helpers ========
+    const APP_BASE_SECRET = "ATTENDANCE_BASE_SECRET";
+
+    function generateTOTP(secret, timeStep = 30, timeOffsetSteps = 0) {
+      const epochSeconds = Math.floor(Date.now() / 1000) + timeOffsetSteps * timeStep;
+      const counter = Math.floor(epochSeconds / timeStep);
+      const data = secret + ":" + counter;
+      let hash = 0;
+      for (let i = 0; i < data.length; i++) {
+        hash = (hash * 31 + data.charCodeAt(i)) | 0;
+      }
+      const code = Math.abs(hash) % 1000000;
+      return String(code).padStart(6, "0");
+    }
+
+    function verifyTOTP(token, secret, timeStep = 30, window = 1) {
+      token = (token || "").trim();
+      if (!/^[0-9]{6}$/.test(token)) return false;
+      for (let offset = -window; offset <= window; offset++) {
+        const expected = generateTOTP(secret, timeStep, offset);
+        if (expected === token) return true;
+      }
+      return false;
+    }
+
+    // ======== Icons (subset) ========
+    const Lock = ({ size = 24, className = "" }) => (
+      <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+      </svg>
+    );
+
+    const CheckCircle = ({ size = 24, className = "" }) => (
+      <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+      </svg>
+    );
+
+    const Users = ({ size = 24, className = "" }) => (
+      <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+        <circle cx="9" cy="7" r="4"></circle>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+      </svg>
+    );
+
+    const Calendar = ({ size = 24, className = "" }) => (
+      <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+        <line x1="16" y1="2" x2="16" y2="6"/>
+        <line x1="8" y1="2" x2="8" y2="6"/>
+        <line x1="3" y1="10" x2="21" y2="10"/>
+      </svg>
+    );
+
+    const Clock = ({ size = 24, className = "" }) => (
+      <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <polyline points="12 6 12 12 16 14"/>
+      </svg>
+    );
+
+    const AlertCircle = ({ size = 24, className = "" }) => (
+      <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="8" x2="12" y2="12"></line>
+        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+      </svg>
+    );
+
+    const QrCodeIcon = ({ size = 24, className = "" }) => (
+      <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="7" height="7"/>
+        <rect x="14" y="3" width="7" height="7"/>
+        <rect x="3" y="14" width="7" height="7"/>
+        <path d="M17 14h1v1h-1v-1zm3 0h1v1h-1v-1zm-3 3h1v1h-1v-1zm3 0h1v1h-1v-1zm-3 3h1v1h-1v-1zm3 0h1v1h-1v-1z"/>
+      </svg>
+    );
+
+    const UserCheck = ({ size = 24, className = "" }) => (
+      <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="8.5" cy="7" r="4"/>
+        <polyline points="17 11 19 13 23 9"/>
+      </svg>
+    );
+
+    const Trash2 = ({ size = 24, className = "" }) => (
+      <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="3 6 5 6 21 6"/>
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+      </svg>
+    );
+
+    const Plus = ({ size = 24, className = "" }) => (
+      <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19" />
+        <line x1="5" y1="12" x2="19" y2="12" />
+      </svg>
+    );
+
+    const CopyIcon = ({ size = 24, className = "" }) => (
+      <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+      </svg>
+    );
+
+    const Smartphone = ({ size = 24, className = "" }) => (
+      <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+        <line x1="12" y1="18" x2="12.01" y2="18"/>
+      </svg>
+    );
+
+    // ======== Student Check-In Page (per-student TOTP verification) ========
+    function StudentCheckIn() {
+      const [sessionId, setSessionId] = useState("");
+      const [classId, setClassId] = useState("");
+      const [studentId, setStudentId] = useState("");
+      const [useCode, setUseCode] = useState(true);
+      const [code, setCode] = useState("");
+      const [error, setError] = useState("");
+      const [submitted, setSubmitted] = useState(false);
+
+      useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionParam = urlParams.get("session");
+        const classParam = urlParams.get("classId");
+        if (sessionParam) setSessionId(sessionParam);
+        if (classParam) setClassId(classParam);
+      }, []);
+
+      const handleSubmit = async () => {
+        setError("");
+
+        if (!studentId.trim()) {
+          setError("Please enter your Student ID");
+          return;
+        }
+
+        if (useCode && !code.trim()) {
+          setError("Please enter the rolling code");
+          return;
+        }
+
+        try {
+          if (useCode) {
+            const docRef = db.collection("students").doc(studentId.trim());
+            const snap = await docRef.get();
+
+            if (!snap.exists) {
+              setError("We couldn't find your TOTP setup. Ask your instructor to register you.");
+              return;
+            }
+
+            const data = snap.data();
+            const secret = data.totpSecret;
+            if (!secret) {
+              setError("No TOTP secret on file. Ask your instructor to assign one.");
+              return;
+            }
+
+            const ok = verifyTOTP(code.trim(), secret, 30, 1);
+            if (!ok) {
+              setError("Invalid or expired code. Double-check the digits and try again.");
+              return;
+            }
+          }
+
+          setSubmitted(true);
+          // TODO: also POST attendance to real backend if you add one
+          setTimeout(() => {
+            window.close && window.close();
+          }, 3000);
+        } catch (err) {
+          console.error("Check-in error", err);
+          setError("Something went wrong. Please try again or tell your instructor.");
+        }
+      };
+
+      if (submitted) {
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center p-6">
+            <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full text-center">
+              <CheckCircle size={72} className="text-emerald-500 mx-auto mb-4" />
+              <h1 className="text-3xl font-bold text-slate-800 mb-2">You&apos;re checked in!</h1>
+              <p className="text-slate-500">Your attendance has been recorded for this session.</p>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center p-6">
+          <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="text-center mb-6">
+              <UserCheck size={56} className="text-cyan-500 mx-auto mb-3" />
+              <h1 className="text-2xl font-bold text-slate-900 mb-1">Session Check-In</h1>
+              <p className="text-slate-500 text-sm">
+                Enter your info to confirm you were here.
+              </p>
+              {sessionId && (
+                <p className="text-xs text-slate-400 mt-2">Session ID: {sessionId}</p>
+              )}
+              {classId && (
+                <p className="text-xs text-slate-400">Class ID: {classId}</p>
+              )}
+            </div>
+
+            <div className="flex gap-2 mb-4">
+              <button
+                type="button"
+                onClick={() => setUseCode(true)}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium ${
+                  useCode ? "bg-cyan-500 text-white" : "bg-slate-100 text-slate-700"
+                }`}
+              >
+                Enter Rolling Code
+              </button>
+              <button
+                type="button"
+                onClick={() => setUseCode(false)}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium ${
+                  !useCode ? "bg-cyan-500 text-white" : "bg-slate-100 text-slate-700"
+                }`}
+              >
+                No Code (Demo)
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <input
+                type="text"
+                placeholder="Student ID (e.g., 123456)"
+                value={studentId}
+                onChange={(e) => setStudentId(e.target.value)}
+                className="w-full border-2 border-slate-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cyan-500"
+              />
+
+              {useCode && (
+                <input
+                  type="text"
+                  placeholder="6-digit rolling code"
+                  value={code}
+                  maxLength={6}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                  className="w-full border-2 border-slate-200 rounded-lg px-4 py-3 text-center tracking-[0.4em] text-lg font-mono focus:outline-none focus:border-cyan-500"
+                />
+              )}
+
+              {error && (
+                <p className="text-xs text-red-500">{error}</p>
+              )}
+
+              <button
+                type="button"
+                onClick={handleSubmit}
+                className="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-lg py-3 mt-2"
+              >
+                Check In
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ======== Display Mode (projector / laptop) – class-level code ========
+    function DisplayMode() {
+      const [sessionId, setSessionId] = useState("1");
+      const [classId, setClassId] = useState("1");
+      const [className, setClassName] = useState("Current Session");
+      const [intervalSeconds, setIntervalSeconds] = useState(30);
+      const [code, setCode] = useState("");
+      const [countdown, setCountdown] = useState(30);
+      const [checkInUrl, setCheckInUrl] = useState("");
+
+      useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionParam = urlParams.get("session");
+        const classParam = urlParams.get("classId");
+        const classNameParam = urlParams.get("class");
+        const intervalParam = urlParams.get("interval");
+
+        if (sessionParam) setSessionId(sessionParam);
+        if (classParam) setClassId(classParam);
+        if (classNameParam) setClassName(decodeURIComponent(classNameParam));
+        if (intervalParam) setIntervalSeconds(parseInt(intervalParam, 10) || 30);
+      }, []);
+
+      useEffect(() => {
+        const baseUrl = window.location.origin + window.location.pathname;
+        const url =
+          baseUrl +
+          "?mode=checkin&session=" +
+          encodeURIComponent(sessionId) +
+          "&classId=" +
+          encodeURIComponent(classId);
+        setCheckInUrl(url);
+      }, [sessionId, classId]);
+
+      useEffect(() => {
+        const classSecret = APP_BASE_SECRET + ":" + (classId || "default");
+
+        const updateCode = () => {
+          const newCode = generateTOTP(classSecret, intervalSeconds, 0);
+          setCode(newCode);
+          setCountdown(intervalSeconds);
+        };
+        updateCode();
+
+        const codeTimer = setInterval(updateCode, intervalSeconds * 1000);
+        return () => clearInterval(codeTimer);
+      }, [classId, intervalSeconds]);
+
+      useEffect(() => {
+        const timer = setInterval(() => {
+          setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+        }, 1000);
+        return () => clearInterval(timer);
+      }, []);
+
+      const qrSrc = checkInUrl
+        ? "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" + encodeURIComponent(checkInUrl)
+        : "";
+
+      const copyLink = () => {
+        if (!checkInUrl) return;
+        navigator.clipboard.writeText(checkInUrl);
+        alert("Check-in link copied to clipboard.");
+      };
+
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 text-white flex items-center justify-center p-6">
+          <div className="max-w-5xl w-full">
+            <header className="mb-8 text-center">
+              <h1 className="text-4xl md:text-5xl font-extrabold mb-2">Check-In Display</h1>
+              <p className="text-cyan-300 text-lg">{className}</p>
+              <p className="text-slate-400 text-sm mt-1">
+                Class ID: {classId} • Session ID: {sessionId}
+              </p>
+            </header>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-slate-900/80 border border-slate-700 rounded-2xl p-6 flex flex-col items-center">
+                <h2 className="text-xl font-semibold mb-3 flex items-center gap-2">
+                  <QrCodeIcon className="text-cyan-400" /> Scan to Open Check-In Page
+                </h2>
+                <div className="bg-white rounded-2xl p-4 mt-2">
+                  {qrSrc ? (
+                    <img src={qrSrc} alt="QR Code" className="w-64 h-64 object-contain" />
+                  ) : (
+                    <p className="text-slate-700">Generating QR...</p>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400 mt-3">
+                  Aim your phone camera at the QR code, tap the notification, then check in.
+                </p>
+                <div className="mt-4 w-full">
+                  <label className="text-xs text-slate-400 block mb-1 text-left">
+                    Direct link (for students who can&apos;t scan)
+                  </label>
+                  <div className="flex gap-2 items-center">
+                    <input
+                      className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200"
+                      value={checkInUrl}
+                      readOnly
+                    />
+                    <button
+                      onClick={copyLink}
+                      className="flex items-center gap-1 bg-cyan-500 hover:bg-cyan-600 px-3 py-2 rounded-lg text-xs font-semibold"
+                    >
+                      <CopyIcon size={14} /> Copy
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-slate-900/80 border border-slate-700 rounded-2xl p-6 flex flex-col justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                    <Smartphone className="text-emerald-400" /> Rolling Code (Class-Level)
+                  </h2>
+                  <p className="text-sm text-slate-400 mb-3">
+                    Students can use this 6-digit rolling code (changes every {intervalSeconds}s) with
+                    their Student ID on the check-in page.
+                  </p>
+                  <div className="bg-gradient-to-br from-emerald-500 to-teal-500 rounded-2xl p-6 text-center">
+                    <p className="text-xs uppercase tracking-widest text-emerald-100 mb-2">Current Code</p>
+                    <p className="text-5xl md:text-6xl font-extrabold tracking-[0.25em] font-mono bg-white text-slate-900 rounded-xl py-4">
+                      {code || "••••••"}
+                    </p>
+                    <div className="flex items-center justify-center gap-2 mt-4 text-emerald-100">
+                      <Clock size={18} />
+                      <span className="text-sm font-semibold">
+                        Refreshes in {countdown}s
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6">
+                  <label className="block text-xs text-slate-400 mb-1">
+                    Code interval (seconds)
+                  </label>
+                  <select
+                    className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                    value={intervalSeconds}
+                    onChange={(e) => setIntervalSeconds(parseInt(e.target.value, 10))}
+                  >
+                    <option value={15}>15 seconds</option>
+                    <option value={30}>30 seconds</option>
+                    <option value={60}>60 seconds</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ======== Main Admin / Instructor App (simplified) ========
+    function ProAttendanceSystem() {
+      const [activeTab, setActiveTab] = useState("dashboard");
+      const [isAuthenticated, setIsAuthenticated] = useState(false);
+      const [loginUsername, setLoginUsername] = useState("");
+      const [loginPassword, setLoginPassword] = useState("");
+      const [currentTime, setCurrentTime] = useState(new Date());
+
+      const [accounts, setAccounts] = useState([
+        { id: 1, username: "admin",   password: "admin123",   role: "admin",   name: "Administrator" },
+        { id: 2, username: "display", password: "display123", role: "display", name: "Display Mode" }
+      ]);
+
+      const [newAccount, setNewAccount] = useState({
+        name: "",
+        username: "",
+        password: "",
+        role: "instructor",
+      });
+
+      const [classes, setClasses] = useState([
+        { id: 1, name: "Intro to Theatre", code: "THE101" },
+        { id: 2, name: "Stagecraft", code: "THE249" }
+      ]);
+
+      const [students, setStudents] = useState([
+        { id: 1, classId: 1, name: "Student One", studentId: "S001" },
+        { id: 2, classId: 1, name: "Student Two", studentId: "S002" },
+        { id: 3, classId: 2, name: "Tech Student", studentId: "T249" }
+      ]);
+
+      const [selectedClassId, setSelectedClassId] = useState(1);
+      const [checkInSessionId, setCheckInSessionId] = useState("1");
+      const [checkInDisplayUrl, setCheckInDisplayUrl] = useState("");
+
+      const [log, setLog] = useState([]);
+
+      useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+        return () => clearInterval(timer);
+      }, []);
+
+      const addLog = (event, type = "info") => {
+        setLog((prev) => [
+          { id: prev.length + 1, time: new Date().toLocaleString(), event, type },
+          ...prev.slice(0, 99),
+        ]);
+      };
+
+      const handleLogin = () => {
+        const account = accounts.find(
+          (acc) => acc.username === loginUsername && acc.password === loginPassword
+        );
+        if (!account) {
+          alert("Incorrect username or password.");
+          return;
+        }
+        if (account.role === "display") {
+          const baseUrl = window.location.origin + window.location.pathname;
+          const url =
+            baseUrl +
+            "?mode=display&session=1&classId=1&class=" +
+            encodeURIComponent("Current Session") +
+            "&interval=30";
+          window.location.href = url;
+          return;
+        }
+        setIsAuthenticated(true);
+        setActiveTab("dashboard");
+        addLog(account.name + " logged in", "auth");
+      };
+
+      const handleLogout = () => {
+        setIsAuthenticated(false);
+        setLoginUsername("");
+        setLoginPassword("");
+        addLog("User logged out", "auth");
+      };
+
+      const handleAddAccount = () => {
+        if (!newAccount.name || !newAccount.username || !newAccount.password) {
+          alert("Please fill in name, username, and password.");
+          return;
+        }
+        const id =
+          accounts.length > 0 ? Math.max(...accounts.map((a) => a.id)) + 1 : 1;
+        const account = { ...newAccount, id };
+        setAccounts((prev) => [...prev, account]);
+        addLog(`Created account @${newAccount.username} (${newAccount.role})`, "account");
+        setNewAccount({
+          name: "",
+          username: "",
+          password: "",
+          role: "instructor",
+        });
+      };
+
+      const handleDeleteAccount = (id) => {
+        if (id === 1) {
+          alert("You cannot delete the main admin account.");
+          return;
+        }
+        if (!confirm("Delete this account?")) return;
+        setAccounts((prev) => prev.filter((a) => a.id !== id));
+        addLog("Deleted account " + id, "account");
+      };
+
+      const handleDeleteStudent = (studentId) => {
+        if (!confirm("Delete this student?")) return;
+        setStudents((prev) => prev.filter((s) => s.id !== studentId));
+        addLog("Deleted student " + studentId, "student");
+      };
+
+      function generateRandomSecret(length = 32) {
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        let s = "";
+        for (let i = 0; i < length; i++) {
+          s += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return s;
+      }
+
+      async function assignStudentSecret(student) {
+        try {
+          const secret = generateRandomSecret();
+          await db.collection("students").doc(student.studentId).set({
+            studentId: student.studentId,
+            name: student.name,
+            classId: student.classId,
+            totpSecret: secret,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          addLog(`Assigned TOTP secret to ${student.name} (${student.studentId})`, "student");
+          alert(
+            `Secret assigned for ${student.name}. You can now help them pair their authenticator app or use the student app.`
+          );
+        } catch (err) {
+          console.error("Error assigning secret", err);
+          alert("Error assigning secret. See console for details.");
+        }
+      }
+
+      const generateDisplayUrl = () => {
+        const cls = classes.find((c) => c.id === selectedClassId);
+        const baseUrl = window.location.origin + window.location.pathname;
+        const url =
+          baseUrl +
+          "?mode=display&session=" +
+          encodeURIComponent(checkInSessionId) +
+          "&classId=" +
+          encodeURIComponent(selectedClassId) +
+          "&class=" +
+          encodeURIComponent(cls ? cls.name : "Class " + selectedClassId) +
+          "&interval=30";
+        setCheckInDisplayUrl(url);
+      };
+
+      // --- Mode routing (URL decides student vs display vs admin) ---
+      const urlParams = new URLSearchParams(window.location.search);
+      const mode = urlParams.get("mode");
+      if (mode === "checkin") return <StudentCheckIn />;
+      if (mode === "display") return <DisplayMode />;
+
+      // --- Login screen ---
+      if (!isAuthenticated) {
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 flex items-center justify-center p-6">
+            <div className="bg-slate-900 border border-slate-700 rounded-2xl p-8 w-full max-w-md shadow-2xl">
+              <div className="text-center mb-8">
+                <Lock size={56} className="text-cyan-400 mx-auto mb-4" />
+                <h1 className="text-2xl font-bold text-white mb-1">Sign In</h1>
+                <p className="text-slate-400 text-sm">
+                  Use your instructor or admin account to access the dashboard.
+                </p>
+              </div>
+              <div className="space-y-4">
+                <input
+                  type="text"
+                  placeholder="Username"
+                  value={loginUsername}
+                  onChange={(e) => setLoginUsername(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-sm text-slate-100 focus:outline-none focus:border-cyan-500"
+                />
+                <input
+                  type="password"
+                  placeholder="Password"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-sm text-slate-100 focus:outline-none focus:border-cyan-500"
+                />
+                <button
+                  onClick={handleLogin}
+                  className="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-lg py-3 text-sm"
+                >
+                  Login
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // --- Authenticated layout ---
+      const selectedClass = classes.find((c) => c.id === selectedClassId);
+      const classStudents = students.filter((s) => s.classId === selectedClassId);
+
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 text-white p-6">
+          <div className="max-w-6xl mx-auto space-y-6">
+            <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-bold flex items-center gap-2">
+                  <CheckCircle className="text-cyan-400" /> Attendance System (TOTP v3)
+                </h1>
+                <p className="text-slate-400 text-sm">
+                  Multi-class dashboard with per-student rolling-code verification.
+                </p>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-right">
+                  <p className="text-xs text-slate-400">Current Time</p>
+                  <p className="text-sm font-mono">
+                    {currentTime.toLocaleTimeString()}
+                  </p>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold px-4 py-2 rounded-lg"
+                >
+                  <Lock size={16} /> Logout
+                </button>
+              </div>
+            </header>
+
+            <nav className="flex flex-wrap gap-2">
+              {[
+                { id: "dashboard", label: "Dashboard" },
+                { id: "checkin", label: "Check-In Tools" },
+                { id: "students", label: "Students" },
+                { id: "accounts", label: "Accounts" },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={
+                    "px-4 py-2 text-sm rounded-lg border " +
+                    (activeTab === tab.id
+                      ? "bg-cyan-500 border-cyan-500 text-white"
+                      : "bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800")
+                  }
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+
+            <main className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+              {activeTab === "dashboard" && (
+                <div className="space-y-6">
+                  <h2 className="text-xl font-semibold mb-2 flex items-center gap-2">
+                    <Users className="text-cyan-400" /> Overview
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-slate-800 rounded-xl p-4">
+                      <p className="text-xs text-slate-400 mb-1">Classes</p>
+                      <p className="text-3xl font-bold">{classes.length}</p>
+                    </div>
+                    <div className="bg-slate-800 rounded-xl p-4">
+                      <p className="text-xs text-slate-400 mb-1">Students</p>
+                      <p className="text-3xl font-bold">{students.length}</p>
+                    </div>
+                    <div className="bg-slate-800 rounded-xl p-4">
+                      <p className="text-xs text-slate-400 mb-1">Accounts</p>
+                      <p className="text-3xl font-bold">{accounts.length}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <h3 className="text-sm font-semibold text-slate-300 mb-2">Recent Activity</h3>
+                    <div className="max-h-48 overflow-y-auto space-y-1 text-xs">
+                      {log.length === 0 && (
+                        <p className="text-slate-500">No activity yet.</p>
+                      )}
+                      {log.map((entry) => (
+                        <div
+                          key={entry.id}
+                          className="bg-slate-800 rounded px-3 py-2 flex justify-between gap-2"
+                        >
+                          <span className="text-slate-400">{entry.time}</span>
+                          <span className="text-slate-100">{entry.event}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "checkin" && (
+                <div className="space-y-6">
+                  <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                    <UserCheck className="text-cyan-400" /> Check-In Tools
+                  </h2>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-slate-800 rounded-xl p-4 space-y-4">
+                      <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                        <Calendar className="text-cyan-400" /> Session Setup
+                      </h3>
+                      <label className="block text-xs text-slate-400 mb-1">
+                        Class
+                      </label>
+                      <select
+                        value={selectedClassId}
+                        onChange={(e) => setSelectedClassId(parseInt(e.target.value, 10))}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                      >
+                        {classes.map((cls) => (
+                          <option key={cls.id} value={cls.id}>
+                            {cls.name} ({cls.code})
+                          </option>
+                        ))}
+                      </select>
+                      <label className="block text-xs text-slate-400 mb-1 mt-3">
+                        Session ID
+                      </label>
+                      <input
+                        type="text"
+                        value={checkInSessionId}
+                        onChange={(e) => setCheckInSessionId(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                      />
+                      <button
+                        onClick={generateDisplayUrl}
+                        className="mt-2 bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-semibold px-4 py-2 rounded-lg"
+                      >
+                        Generate Display URL
+                      </button>
+
+                      {checkInDisplayUrl && (
+                        <div className="mt-4 text-xs">
+                          <p className="text-slate-400 mb-1">Display Mode URL:</p>
+                          <div className="flex gap-2">
+                            <input
+                              className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200"
+                              value={checkInDisplayUrl}
+                              readOnly
+                            />
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(checkInDisplayUrl);
+                                alert("Display URL copied.");
+                              }}
+                              className="bg-slate-700 hover:bg-slate-600 rounded-lg px-3 py-2"
+                            >
+                              <CopyIcon size={14} />
+                            </button>
+                          </div>
+                          <p className="mt-2 text-slate-500">
+                            Open this on a laptop/projector to show QR + rolling code.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="bg-slate-800 rounded-xl p-4 space-y-3">
+                      <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                        <Smartphone className="text-emerald-400" /> Student App (GitHub / PWA)
+                      </h3>
+                      <p className="text-xs text-slate-300">
+                        When you publish this repo to GitHub Pages, students can open{" "}
+                        <span className="font-mono bg-slate-900 px-1 py-0.5 rounded">
+                          /student-app.html
+                        </span>{" "}
+                        in their mobile browser and &quot;Add to Home Screen&quot; to install a
+                        lightweight app.
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        The app uses each student&apos;s assigned TOTP secret from Firestore to
+                        generate a personal rolling code that the check-in page verifies.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "students" && (
+                <div className="space-y-6">
+                  <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                    <Users className="text-cyan-400" /> Students
+                  </h2>
+                  <div className="bg-slate-800 rounded-xl p-4 space-y-3">
+                    <label className="block text-xs text-slate-400 mb-1">
+                      Filter by class
+                    </label>
+                    <select
+                      value={selectedClassId}
+                      onChange={(e) => setSelectedClassId(parseInt(e.target.value, 10))}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm mb-4"
+                    >
+                      {classes.map((cls) => (
+                        <option key={cls.id} value={cls.id}>
+                          {cls.name} ({cls.code})
+                        </option>
+                      ))}
+                    </select>
+
+                    <div className="space-y-2">
+                      {classStudents.map((student) => (
+                        <div
+                          key={student.id}
+                          className="flex items-center justify-between bg-slate-900 rounded-lg px-3 py-2"
+                        >
+                          <div>
+                            <p className="font-semibold">{student.name}</p>
+                            <p className="text-xs text-slate-400">
+                              ID: {student.studentId} • Class ID: {student.classId}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => assignStudentSecret(student)}
+                              className="px-3 py-1 text-xs bg-emerald-500 hover:bg-emerald-600 rounded-lg text-white"
+                            >
+                              Generate Secret
+                            </button>
+                            <button
+                              onClick={() => handleDeleteStudent(student.id)}
+                              className="text-red-400 hover:text-red-300"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      {classStudents.length === 0 && (
+                        <p className="text-xs text-slate-500">
+                          No students in this class yet.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "accounts" && (
+                <div className="space-y-6">
+                  <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                    <Lock className="text-cyan-400" /> Account Management
+                  </h2>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-slate-800 rounded-xl p-4 space-y-3">
+                      <h3 className="text-sm font-semibold mb-2">Create New Account</h3>
+                      <input
+                        type="text"
+                        placeholder="Full name"
+                        value={newAccount.name}
+                        onChange={(e) =>
+                          setNewAccount({ ...newAccount, name: e.target.value })
+                        }
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Username"
+                        value={newAccount.username}
+                        onChange={(e) =>
+                          setNewAccount({ ...newAccount, username: e.target.value })
+                        }
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                      />
+                      <input
+                        type="password"
+                        placeholder="Password"
+                        value={newAccount.password}
+                        onChange={(e) =>
+                          setNewAccount({ ...newAccount, password: e.target.value })
+                        }
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                      />
+                      <select
+                        value={newAccount.role}
+                        onChange={(e) =>
+                          setNewAccount({ ...newAccount, role: e.target.value })
+                        }
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                      >
+                        <option value="instructor">Instructor</option>
+                        <option value="admin">Administrator</option>
+                        <option value="display">Display Only</option>
+                      </select>
+                      <button
+                        onClick={handleAddAccount}
+                        className="w-full bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-semibold py-2 rounded-lg mt-2"
+                      >
+                        Create Account
+                      </button>
+                    </div>
+
+                    <div className="bg-slate-800 rounded-xl p-4 space-y-3">
+                      <h3 className="text-sm font-semibold mb-2">Existing Accounts</h3>
+                      <div className="space-y-2 max-h-64 overflow-y-auto text-sm">
+                        {accounts.map((acc) => (
+                          <div
+                            key={acc.id}
+                            className="flex items-center justify-between bg-slate-900 rounded-lg px-3 py-2"
+                          >
+                            <div>
+                              <p className="font-semibold">{acc.name}</p>
+                              <p className="text-xs text-slate-400">
+                                @{acc.username} • {acc.role}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={
+                                  "px-2 py-1 rounded-full text-xs " +
+                                  (acc.role === "admin"
+                                    ? "bg-cyan-500/20 text-cyan-300"
+                                    : acc.role === "display"
+                                    ? "bg-purple-500/20 text-purple-300"
+                                    : "bg-emerald-500/20 text-emerald-300")
+                                }
+                              >
+                                {acc.role}
+                              </span>
+                              {acc.id !== 1 && (
+                                <button
+                                  onClick={() => handleDeleteAccount(acc.id)}
+                                  className="text-red-400 hover:text-red-300"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+            </main>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<ProAttendanceSystem />);
+  </script>
+</body>
+</html>
