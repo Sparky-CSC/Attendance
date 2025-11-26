@@ -3,13 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Attendance Management System - TOTP v3</title>
+  <title>Attendance Management System - TOTP</title>
+
   <!-- React & Babel -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
   <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+
   <!-- Firebase compat SDKs -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -24,10 +27,13 @@
 
     // ======== Firebase init (REPLACE CONFIG) ========
     const firebaseConfig = {
-      // TODO: FILL IN YOUR FIREBASE CONFIG FROM THE CONSOLE
-      // apiKey: "YOUR_API_KEY",
-      // authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-      // projectId: "YOUR_PROJECT_ID",apiKey: "AIzaSyAPQLUOYx6oRboHAncHiJUBdJ9i1QhySQU",
+      // TODO: paste your real Firebase config here, e.g.:
+      // apiKey: "AIzaSy....",
+      // authDomain: "your-project-id.firebaseapp.com",
+      // projectId: "your-project-id",
+      // storageBucket: "your-project-id.appspot.com",
+      // messagingSenderId: "1234567890",
+      // appId: "1:1234567890:web:abcdefghijk",
   apiKey: "AIzaSyAPQLUOYx6oRboHAncHiJUBdJ9i1QhySQU",
   authDomain: "attendance-app-3cef5.firebaseapp.com",
   projectId: "attendance-app-3cef5",
@@ -226,7 +232,7 @@
           }
 
           setSubmitted(true);
-          // TODO: also POST attendance to real backend if you add one
+          // TODO: here is where you’d also write an attendance record if desired
           setTimeout(() => {
             window.close && window.close();
           }, 3000);
@@ -478,7 +484,7 @@
       );
     }
 
-    // ======== Main Admin / Instructor App (simplified) ========
+    // ======== Main Admin / Instructor App ========
     function ProAttendanceSystem() {
       const [activeTab, setActiveTab] = useState("dashboard");
       const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -486,6 +492,7 @@
       const [loginPassword, setLoginPassword] = useState("");
       const [currentTime, setCurrentTime] = useState(new Date());
 
+      // accounts are still in memory; you could later move them to Firestore/Auth
       const [accounts, setAccounts] = useState([
         { id: 1, username: "admin",   password: "admin123",   role: "admin",   name: "Administrator" },
         { id: 2, username: "display", password: "display123", role: "display", name: "Display Mode" }
@@ -498,32 +505,31 @@
         role: "instructor",
       });
 
-// Firestore-backed collections
-const [classes, setClasses] = useState([]);
-const [students, setStudents] = useState([]);
-const [sessions, setSessions] = useState([]);   // NEW
+      // Firestore-backed collections
+      const [classes, setClasses] = useState([]);
+      const [students, setStudents] = useState([]);
+      const [sessions, setSessions] = useState([]);
 
-// Helpers for create/edit
-const [editingClass, setEditingClass] = useState(null);
-const [newClass, setNewClass] = useState({ name: "", code: "" });
-
-const [editingStudent, setEditingStudent] = useState(null);
-const [newStudent, setNewStudent] = useState({ name: "", studentId: "", classId: "" });
-
-// Bulk session creation form
-const [bulkSession, setBulkSession] = useState({
-  classId: "",
-  dates: [],      // array of "YYYY-MM-DD"
-  startTime: "",
-  endTime: ""
-});
-
-
-      const [selectedClassId, setSelectedClassId] = useState(1);
+      const [selectedClassId, setSelectedClassId] = useState("");
       const [checkInSessionId, setCheckInSessionId] = useState("1");
       const [checkInDisplayUrl, setCheckInDisplayUrl] = useState("");
 
       const [log, setLog] = useState([]);
+
+      // Class / student editing helpers
+      const [editingClass, setEditingClass] = useState(null);
+      const [newClass, setNewClass] = useState({ name: "", code: "" });
+
+      const [editingStudent, setEditingStudent] = useState(null);
+      const [newStudent, setNewStudent] = useState({ name: "", studentId: "" });
+
+      // Bulk sessions
+      const [bulkSession, setBulkSession] = useState({
+        dates: [],
+        startTime: "",
+        endTime: ""
+      });
+      const [dateInput, setDateInput] = useState("");
 
       useEffect(() => {
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -537,6 +543,41 @@ const [bulkSession, setBulkSession] = useState({
         ]);
       };
 
+      // Firestore subscriptions
+      useEffect(() => {
+        const unsub = db.collection("classes")
+          .orderBy("createdAt", "asc")
+          .onSnapshot((snap) => {
+            const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setClasses(data);
+            if (!selectedClassId && data.length > 0) {
+              setSelectedClassId(data[0].id);
+            }
+          });
+        return () => unsub();
+      }, []);
+
+      useEffect(() => {
+        const unsub = db.collection("students")
+          .orderBy("studentId", "asc")
+          .onSnapshot((snap) => {
+            const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setStudents(data);
+          });
+        return () => unsub();
+      }, []);
+
+      useEffect(() => {
+        const unsub = db.collection("sessions")
+          .orderBy("date", "asc")
+          .onSnapshot((snap) => {
+            const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setSessions(data);
+          });
+        return () => unsub();
+      }, []);
+
+      // --- Auth ---
       const handleLogin = () => {
         const account = accounts.find(
           (acc) => acc.username === loginUsername && acc.password === loginPassword
@@ -595,10 +636,90 @@ const [bulkSession, setBulkSession] = useState({
         addLog("Deleted account " + id, "account");
       };
 
-      const handleDeleteStudent = (studentId) => {
+      // --- Classes ---
+      const handleSaveNewClass = async () => {
+        if (!newClass.name.trim() || !newClass.code.trim()) {
+          alert("Please enter class name and code.");
+          return;
+        }
+        await db.collection("classes").add({
+          name: newClass.name.trim(),
+          code: newClass.code.trim(),
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        addLog(`Created class ${newClass.name} (${newClass.code})`, "class");
+        setNewClass({ name: "", code: "" });
+      };
+
+      const handleUpdateClass = async () => {
+        if (!editingClass) return;
+        if (!editingClass.name.trim() || !editingClass.code.trim()) {
+          alert("Please enter class name and code.");
+          return;
+        }
+        await db.collection("classes").doc(editingClass.id).update({
+          name: editingClass.name.trim(),
+          code: editingClass.code.trim()
+        });
+        addLog(`Updated class ${editingClass.name}`, "class");
+        setEditingClass(null);
+      };
+
+      const handleDeleteClass = async (cls) => {
+        if (!confirm(`Delete class "${cls.name}" and its sessions?`)) return;
+        await db.collection("classes").doc(cls.id).delete();
+
+        const batch = db.batch();
+        const sessSnap = await db.collection("sessions").where("classId", "==", cls.id).get();
+        sessSnap.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+
+        addLog(`Deleted class ${cls.name}`, "class");
+        if (selectedClassId === cls.id) setSelectedClassId("");
+      };
+
+      // --- Students ---
+      const handleSaveNewStudent = async () => {
+        if (!newStudent.name.trim() || !newStudent.studentId.trim()) {
+          alert("Please enter student name and ID.");
+          return;
+        }
+        if (!selectedClassId) {
+          alert("Select a class first.");
+          return;
+        }
+
+        await db.collection("students").doc(newStudent.studentId.trim()).set({
+          studentId: newStudent.studentId.trim(),
+          name: newStudent.name.trim(),
+          classId: selectedClassId,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        addLog(`Added student ${newStudent.name} (${newStudent.studentId})`, "student");
+        setNewStudent({ name: "", studentId: "" });
+      };
+
+      const handleUpdateStudent = async () => {
+        if (!editingStudent) return;
+        if (!editingStudent.name.trim()) {
+          alert("Please enter a name.");
+          return;
+        }
+
+        await db.collection("students").doc(editingStudent.studentId).update({
+          name: editingStudent.name.trim(),
+          classId: editingStudent.classId
+        });
+
+        addLog(`Updated student ${editingStudent.name}`, "student");
+        setEditingStudent(null);
+      };
+
+      const handleDeleteStudent = async (studentDocId) => {
         if (!confirm("Delete this student?")) return;
-        setStudents((prev) => prev.filter((s) => s.id !== studentId));
-        addLog("Deleted student " + studentId, "student");
+        await db.collection("students").doc(studentDocId).delete();
+        addLog("Deleted student " + studentDocId, "student");
       };
 
       function generateRandomSecret(length = 32) {
@@ -614,15 +735,13 @@ const [bulkSession, setBulkSession] = useState({
         try {
           const secret = generateRandomSecret();
           await db.collection("students").doc(student.studentId).set({
-            studentId: student.studentId,
-            name: student.name,
-            classId: student.classId,
+            ...student,
             totpSecret: secret,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
           });
           addLog(`Assigned TOTP secret to ${student.name} (${student.studentId})`, "student");
           alert(
-            `Secret assigned for ${student.name}. You can now help them pair their authenticator app or use the student app.`
+            `Secret assigned for ${student.name}. They can now use the student app to get their code.`
           );
         } catch (err) {
           console.error("Error assigning secret", err);
@@ -630,7 +749,12 @@ const [bulkSession, setBulkSession] = useState({
         }
       }
 
+      // --- Sessions / Display URL ---
       const generateDisplayUrl = () => {
+        if (!selectedClassId) {
+          alert("Select a class first.");
+          return;
+        }
         const cls = classes.find((c) => c.id === selectedClassId);
         const baseUrl = window.location.origin + window.location.pathname;
         const url =
@@ -645,7 +769,60 @@ const [bulkSession, setBulkSession] = useState({
         setCheckInDisplayUrl(url);
       };
 
-      // --- Mode routing (URL decides student vs display vs admin) ---
+      const addBulkDate = () => {
+        if (!dateInput) return;
+        if (!bulkSession.dates.includes(dateInput)) {
+          setBulkSession({
+            ...bulkSession,
+            dates: [...bulkSession.dates, dateInput]
+          });
+        }
+        setDateInput("");
+      };
+
+      const removeBulkDate = (date) => {
+        setBulkSession({
+          ...bulkSession,
+          dates: bulkSession.dates.filter(d => d !== date)
+        });
+      };
+
+      const handleCreateSessionsBulk = async () => {
+        if (!selectedClassId) {
+          alert("Select a class first.");
+          return;
+        }
+        if (bulkSession.dates.length === 0) {
+          alert("Add at least one date.");
+          return;
+        }
+        if (!bulkSession.startTime || !bulkSession.endTime) {
+          alert("Set start and end time.");
+          return;
+        }
+
+        const batch = db.batch();
+        bulkSession.dates.forEach((date) => {
+          const ref = db.collection("sessions").doc();
+          batch.set(ref, {
+            classId: selectedClassId,
+            date,
+            startTime: bulkSession.startTime,
+            endTime: bulkSession.endTime,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        });
+
+        await batch.commit();
+        addLog(`Created ${bulkSession.dates.length} sessions`, "session");
+        setBulkSession({
+          dates: [],
+          startTime: "",
+          endTime: ""
+        });
+      };
+
+      // --- URL routing for check-in / display ---
       const urlParams = new URLSearchParams(window.location.search);
       const mode = urlParams.get("mode");
       if (mode === "checkin") return <StudentCheckIn />;
@@ -694,6 +871,7 @@ const [bulkSession, setBulkSession] = useState({
       // --- Authenticated layout ---
       const selectedClass = classes.find((c) => c.id === selectedClassId);
       const classStudents = students.filter((s) => s.classId === selectedClassId);
+      const classSessions = sessions.filter((s) => s.classId === selectedClassId);
 
       return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 text-white p-6">
@@ -701,7 +879,7 @@ const [bulkSession, setBulkSession] = useState({
             <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
                 <h1 className="text-3xl font-bold flex items-center gap-2">
-                  <CheckCircle className="text-cyan-400" /> Attendance System (TOTP v3)
+                  <CheckCircle className="text-cyan-400" /> Attendance System (TOTP)
                 </h1>
                 <p className="text-slate-400 text-sm">
                   Multi-class dashboard with per-student rolling-code verification.
@@ -726,8 +904,10 @@ const [bulkSession, setBulkSession] = useState({
             <nav className="flex flex-wrap gap-2">
               {[
                 { id: "dashboard", label: "Dashboard" },
-                { id: "checkin", label: "Check-In Tools" },
+                { id: "classes", label: "Classes" },
                 { id: "students", label: "Students" },
+                { id: "sessions", label: "Sessions" },
+                { id: "checkin", label: "Check-In Tools" },
                 { id: "accounts", label: "Accounts" },
               ].map((tab) => (
                 <button
@@ -746,6 +926,7 @@ const [bulkSession, setBulkSession] = useState({
             </nav>
 
             <main className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+              {/* DASHBOARD */}
               {activeTab === "dashboard" && (
                 <div className="space-y-6">
                   <h2 className="text-xl font-semibold mb-2 flex items-center gap-2">
@@ -761,8 +942,8 @@ const [bulkSession, setBulkSession] = useState({
                       <p className="text-3xl font-bold">{students.length}</p>
                     </div>
                     <div className="bg-slate-800 rounded-xl p-4">
-                      <p className="text-xs text-slate-400 mb-1">Accounts</p>
-                      <p className="text-3xl font-bold">{accounts.length}</p>
+                      <p className="text-xs text-slate-400 mb-1">Sessions</p>
+                      <p className="text-3xl font-bold">{sessions.length}</p>
                     </div>
                   </div>
 
@@ -786,31 +967,320 @@ const [bulkSession, setBulkSession] = useState({
                 </div>
               )}
 
+              {/* CLASSES */}
+              {activeTab === "classes" && (
+                <div className="space-y-6">
+                  <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                    <Calendar className="text-cyan-400" /> Classes
+                  </h2>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* New class form */}
+                    <div className="bg-slate-800 rounded-xl p-4 space-y-3">
+                      <h3 className="text-sm font-semibold mb-2">Add New Class</h3>
+                      <input
+                        type="text"
+                        placeholder="Class name"
+                        value={newClass.name}
+                        onChange={(e) => setNewClass({ ...newClass, name: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Class code"
+                        value={newClass.code}
+                        onChange={(e) => setNewClass({ ...newClass, code: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                      />
+                      <button
+                        onClick={handleSaveNewClass}
+                        className="w-full bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-semibold py-2 rounded-lg"
+                      >
+                        Save Class
+                      </button>
+                    </div>
+
+                    {/* Class list */}
+                    <div className="bg-slate-800 rounded-xl p-4 space-y-2">
+                      <h3 className="text-sm font-semibold mb-2">Existing Classes</h3>
+                      {classes.map((cls) => (
+                        <div
+                          key={cls.id}
+                          className="flex items-center justify-between bg-slate-900 rounded-lg px-3 py-2"
+                        >
+                          {editingClass && editingClass.id === cls.id ? (
+                            <div className="flex-1 mr-2 space-y-1">
+                              <input
+                                type="text"
+                                value={editingClass.name}
+                                onChange={(e) =>
+                                  setEditingClass({ ...editingClass, name: e.target.value })
+                                }
+                                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs"
+                              />
+                              <input
+                                type="text"
+                                value={editingClass.code}
+                                onChange={(e) =>
+                                  setEditingClass({ ...editingClass, code: e.target.value })
+                                }
+                                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs"
+                              />
+                            </div>
+                          ) : (
+                            <div>
+                              <p className="font-semibold text-sm">{cls.name}</p>
+                              <p className="text-xs text-slate-400">{cls.code}</p>
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-2">
+                            {editingClass && editingClass.id === cls.id ? (
+                              <>
+                                <button
+                                  onClick={handleUpdateClass}
+                                  className="px-2 py-1 text-xs bg-emerald-500 hover:bg-emerald-600 rounded-lg text-white"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  onClick={() => setEditingClass(null)}
+                                  className="px-2 py-1 text-xs bg-slate-700 hover:bg-slate-600 rounded-lg"
+                                >
+                                  Cancel
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => setEditingClass(cls)}
+                                  className="px-2 py-1 text-xs bg-slate-700 hover:bg-slate-600 rounded-lg"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteClass(cls)}
+                                  className="text-red-400 hover:text-red-300"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* STUDENTS */}
+              {activeTab === "students" && (
+                <div className="space-y-6">
+                  <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                    <Users className="text-cyan-400" /> Students
+                  </h2>
+
+                  <div className="bg-slate-800 rounded-xl p-4 mb-4">
+                    <label className="block text-xs text-slate-400 mb-1">Filter by class</label>
+                    <select
+                      value={selectedClassId || ""}
+                      onChange={(e) => setSelectedClassId(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                    >
+                      <option value="" disabled>Select a class</option>
+                      {classes.map((cls) => (
+                        <option key={cls.id} value={cls.id}>
+                          {cls.name} ({cls.code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* New student form */}
+                    <div className="bg-slate-800 rounded-xl p-4 space-y-3">
+                      <h3 className="text-sm font-semibold mb-2">Add New Student</h3>
+                      <input
+                        type="text"
+                        placeholder="Student name"
+                        value={newStudent.name}
+                        onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Student ID (used as login ID)"
+                        value={newStudent.studentId}
+                        onChange={(e) =>
+                          setNewStudent({ ...newStudent, studentId: e.target.value })
+                        }
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                      />
+                      <button
+                        onClick={handleSaveNewStudent}
+                        className="w-full bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-semibold py-2 rounded-lg"
+                      >
+                        Save Student
+                      </button>
+                    </div>
+
+                    {/* Student list */}
+                    <div className="bg-slate-800 rounded-xl p-4 space-y-2">
+                      <h3 className="text-sm font-semibold mb-2">Students in selected class</h3>
+                      {classStudents.map((student) => (
+                        <div
+                          key={student.studentId}
+                          className="flex items-center justify-between bg-slate-900 rounded-lg px-3 py-2"
+                        >
+                          {editingStudent && editingStudent.studentId === student.studentId ? (
+                            <div className="flex-1 mr-2 space-y-1">
+                              <input
+                                type="text"
+                                value={editingStudent.name}
+                                onChange={(e) =>
+                                  setEditingStudent({ ...editingStudent, name: e.target.value })
+                                }
+                                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs"
+                              />
+                            </div>
+                          ) : (
+                            <div>
+                              <p className="font-semibold text-sm">{student.name}</p>
+                              <p className="text-xs text-slate-400">
+                                {student.studentId}
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => assignStudentSecret(student)}
+                              className="px-2 py-1 text-xs bg-emerald-500 hover:bg-emerald-600 rounded-lg text-white"
+                            >
+                              Secret
+                            </button>
+
+                            {editingStudent && editingStudent.studentId === student.studentId ? (
+                              <>
+                                <button
+                                  onClick={handleUpdateStudent}
+                                  className="px-2 py-1 text-xs bg-emerald-500 hover:bg-emerald-600 rounded-lg text-white"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  onClick={() => setEditingStudent(null)}
+                                  className="px-2 py-1 text-xs bg-slate-700 hover:bg-slate-600 rounded-lg"
+                                >
+                                  Cancel
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => setEditingStudent(student)}
+                                  className="px-2 py-1 text-xs bg-slate-700 hover:bg-slate-600 rounded-lg"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteStudent(student.id)}
+                                  className="text-red-400 hover:text-red-300"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {classStudents.length === 0 && (
+                        <p className="text-xs text-slate-500">
+                          No students in this class yet.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SESSIONS LIST */}
+              {activeTab === "sessions" && (
+                <div className="space-y-6">
+                  <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                    <Calendar className="text-cyan-400" /> Sessions
+                  </h2>
+
+                  <div className="bg-slate-800 rounded-xl p-4 mb-4">
+                    <label className="block text-xs text-slate-400 mb-1">Filter by class</label>
+                    <select
+                      value={selectedClassId || ""}
+                      onChange={(e) => setSelectedClassId(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                    >
+                      <option value="" disabled>Select a class</option>
+                      {classes.map((cls) => (
+                        <option key={cls.id} value={cls.id}>
+                          {cls.name} ({cls.code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="bg-slate-800 rounded-xl p-4 space-y-2">
+                    <h3 className="text-sm font-semibold mb-2">Sessions</h3>
+                    {classSessions.map((s) => (
+                      <div
+                        key={s.id}
+                        className="flex items-center justify-between bg-slate-900 rounded-lg px-3 py-2 text-sm"
+                      >
+                        <div>
+                          <p className="font-semibold">{s.date}</p>
+                          <p className="text-xs text-slate-400">
+                            {s.startTime} – {s.endTime}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                    {classSessions.length === 0 && (
+                      <p className="text-xs text-slate-500">
+                        No sessions for this class yet.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* CHECK-IN TOOLS (Display URL + Bulk Sessions) */}
               {activeTab === "checkin" && (
                 <div className="space-y-6">
                   <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
                     <UserCheck className="text-cyan-400" /> Check-In Tools
                   </h2>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="bg-slate-800 rounded-xl p-4 space-y-4">
                       <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
-                        <Calendar className="text-cyan-400" /> Session Setup
+                        <Calendar className="text-cyan-400" /> Display Mode Link
                       </h3>
+
                       <label className="block text-xs text-slate-400 mb-1">
                         Class
                       </label>
                       <select
-                        value={selectedClassId}
-                        onChange={(e) => setSelectedClassId(parseInt(e.target.value, 10))}
+                        value={selectedClassId || ""}
+                        onChange={(e) => setSelectedClassId(e.target.value)}
                         className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
                       >
+                        <option value="" disabled>Select a class</option>
                         {classes.map((cls) => (
                           <option key={cls.id} value={cls.id}>
                             {cls.name} ({cls.code})
                           </option>
                         ))}
                       </select>
+
                       <label className="block text-xs text-slate-400 mb-1 mt-3">
                         Session ID
                       </label>
@@ -820,6 +1290,7 @@ const [bulkSession, setBulkSession] = useState({
                         onChange={(e) => setCheckInSessionId(e.target.value)}
                         className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
                       />
+
                       <button
                         onClick={generateDisplayUrl}
                         className="mt-2 bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-semibold px-4 py-2 rounded-lg"
@@ -853,86 +1324,101 @@ const [bulkSession, setBulkSession] = useState({
                       )}
                     </div>
 
+                    {/* Bulk sessions */}
                     <div className="bg-slate-800 rounded-xl p-4 space-y-3">
                       <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
-                        <Smartphone className="text-emerald-400" /> Student App (GitHub / PWA)
+                        <Calendar className="text-cyan-400" /> Bulk Create Sessions
                       </h3>
-                      <p className="text-xs text-slate-300">
-                        When you publish this repo to GitHub Pages, students can open{" "}
-                        <span className="font-mono bg-slate-900 px-1 py-0.5 rounded">
-                          /student-app.html
-                        </span>{" "}
-                        in their mobile browser and &quot;Add to Home Screen&quot; to install a
-                        lightweight app.
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        The app uses each student&apos;s assigned TOTP secret from Firestore to
-                        generate a personal rolling code that the check-in page verifies.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
 
-              {activeTab === "students" && (
-                <div className="space-y-6">
-                  <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                    <Users className="text-cyan-400" /> Students
-                  </h2>
-                  <div className="bg-slate-800 rounded-xl p-4 space-y-3">
-                    <label className="block text-xs text-slate-400 mb-1">
-                      Filter by class
-                    </label>
-                    <select
-                      value={selectedClassId}
-                      onChange={(e) => setSelectedClassId(parseInt(e.target.value, 10))}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm mb-4"
-                    >
-                      {classes.map((cls) => (
-                        <option key={cls.id} value={cls.id}>
-                          {cls.name} ({cls.code})
-                        </option>
-                      ))}
-                    </select>
+                      <label className="block text-xs text-slate-400 mb-1">Class</label>
+                      <select
+                        value={selectedClassId || ""}
+                        onChange={(e) => setSelectedClassId(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm mb-2"
+                      >
+                        <option value="" disabled>Select a class</option>
+                        {classes.map((cls) => (
+                          <option key={cls.id} value={cls.id}>
+                            {cls.name} ({cls.code})
+                          </option>
+                        ))}
+                      </select>
 
-                    <div className="space-y-2">
-                      {classStudents.map((student) => (
-                        <div
-                          key={student.id}
-                          className="flex items-center justify-between bg-slate-900 rounded-lg px-3 py-2"
+                      <label className="block text-xs text-slate-400 mb-1">Add Dates</label>
+                      <div className="flex gap-2 mb-2">
+                        <input
+                          type="date"
+                          value={dateInput}
+                          onChange={(e) => setDateInput(e.target.value)}
+                          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={addBulkDate}
+                          className="px-3 py-2 text-xs bg-slate-700 hover:bg-slate-600 rounded-lg"
                         >
-                          <div>
-                            <p className="font-semibold">{student.name}</p>
-                            <p className="text-xs text-slate-400">
-                              ID: {student.studentId} • Class ID: {student.classId}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2">
+                          Add
+                        </button>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {bulkSession.dates.map((d) => (
+                          <span
+                            key={d}
+                            className="flex items-center gap-1 bg-slate-900 border border-slate-700 rounded-full px-3 py-1 text-xs"
+                          >
+                            {d}
                             <button
-                              onClick={() => assignStudentSecret(student)}
-                              className="px-3 py-1 text-xs bg-emerald-500 hover:bg-emerald-600 rounded-lg text-white"
+                              type="button"
+                              onClick={() => removeBulkDate(d)}
+                              className="text-slate-400 hover:text-white"
                             >
-                              Generate Secret
+                              ×
                             </button>
-                            <button
-                              onClick={() => handleDeleteStudent(student.id)}
-                              className="text-red-400 hover:text-red-300"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
+                          </span>
+                        ))}
+                        {bulkSession.dates.length === 0 && (
+                          <span className="text-xs text-slate-500">No dates added yet.</span>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs text-slate-400 mb-1 block">Start time</label>
+                          <input
+                            type="time"
+                            value={bulkSession.startTime}
+                            onChange={(e) =>
+                              setBulkSession({ ...bulkSession, startTime: e.target.value })
+                            }
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                          />
                         </div>
-                      ))}
-                      {classStudents.length === 0 && (
-                        <p className="text-xs text-slate-500">
-                          No students in this class yet.
-                        </p>
-                      )}
+                        <div>
+                          <label className="text-xs text-slate-400 mb-1 block">End time</label>
+                          <input
+                            type="time"
+                            value={bulkSession.endTime}
+                            onChange={(e) =>
+                              setBulkSession({ ...bulkSession, endTime: e.target.value })
+                            }
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={handleCreateSessionsBulk}
+                        className="w-full bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-semibold py-2 rounded-lg mt-2"
+                      >
+                        Create Sessions
+                      </button>
                     </div>
                   </div>
                 </div>
               )}
 
+              {/* ACCOUNTS */}
               {activeTab === "accounts" && (
                 <div className="space-y-6">
                   <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
