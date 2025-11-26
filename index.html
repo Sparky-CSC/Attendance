@@ -498,16 +498,26 @@
         role: "instructor",
       });
 
-      const [classes, setClasses] = useState([
-        { id: 1, name: "Intro to Theatre", code: "THE101" },
-        { id: 2, name: "Stagecraft", code: "THE249" }
-      ]);
+// Firestore-backed collections
+const [classes, setClasses] = useState([]);
+const [students, setStudents] = useState([]);
+const [sessions, setSessions] = useState([]);   // NEW
 
-      const [students, setStudents] = useState([
-        { id: 1, classId: 1, name: "Student One", studentId: "S001" },
-        { id: 2, classId: 1, name: "Student Two", studentId: "S002" },
-        { id: 3, classId: 2, name: "Tech Student", studentId: "T249" }
-      ]);
+// Helpers for create/edit
+const [editingClass, setEditingClass] = useState(null);
+const [newClass, setNewClass] = useState({ name: "", code: "" });
+
+const [editingStudent, setEditingStudent] = useState(null);
+const [newStudent, setNewStudent] = useState({ name: "", studentId: "", classId: "" });
+
+// Bulk session creation form
+const [bulkSession, setBulkSession] = useState({
+  classId: "",
+  dates: [],      // array of "YYYY-MM-DD"
+  startTime: "",
+  endTime: ""
+});
+
 
       const [selectedClassId, setSelectedClassId] = useState(1);
       const [checkInSessionId, setCheckInSessionId] = useState("1");
